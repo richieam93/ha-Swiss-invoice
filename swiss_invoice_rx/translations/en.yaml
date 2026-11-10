@@ -1,0 +1,7 @@
+configuration:
+  log_level:
+    name: Log level
+    description: How detailed should the technical logs be?
+  import_backup:
+    name: Import a Windows backup once
+    description: "Only if the database is empty. Place the backup at /share/swiss-invoice-rx/import.zip. Existing data will never be overwritten."

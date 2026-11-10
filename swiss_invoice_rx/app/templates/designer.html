@@ -1,0 +1,90 @@
+{% extends 'base.html' %}
+{% block title %}Freier PDF-Designer{% endblock %}
+{% block content %}<div class="hi-page-helpers"><a class="btn btn-sm" href="{{ ingress_prefix }}/templates">Vorlagenbibliothek &rarr;</a><a class="btn btn-sm" href="{{ ingress_prefix }}/settings">Firmendaten</a><a class="btn btn-sm" href="{{ ingress_prefix }}/qr-test">QR-Testzentrum</a></div>
+<link rel="stylesheet" href="{{ ingress_prefix }}/static/designer.css">
+<div class="page-head">
+ <div><span class="eyebrow">VORLAGEN-STUDIO / {{ settings.name }}</span><h1>Freier PDF-Designer</h1>
+  <p>Verschiebe und skaliere deine Rechnungsfelder direkt auf A4. Änderungen erscheinen im echten Rechnungs-PDF.</p></div>
+ <div class="page-actions"><a class="btn" href="{{ ingress_prefix }}/templates">&larr; Zur Vorlagenbibliothek</a></div>
+</div>
+<div class="designer-notice" role="note"><b>So funktioniert's:</b> Element anklicken, ziehen oder rechts millimetergenau einstellen. Unten rechts am Element die Grösse ändern. Mit <b>PDF-Muster ansehen</b> die echte Ausgabe prüfen. <b>Wichtig:</b> Positionstabelle, Total und Bemerkungen fliessen bei langen Rechnungen automatisch auf Folgeseiten weiter. Der standardisierte Swiss-QR-Zahlteil bleibt geschützt.</div>
+<div id="layout-designer" class="designer-shell" data-company="{{ settings.name|e }}" data-address="{{ (settings.street ~ ' ' ~ settings.building ~ '\n' ~ settings.zip ~ ' ' ~ settings.city)|e }}" data-title="{{ settings.template_title|e }}" data-footer="{{ settings.template_footer|e }}" data-notes="{{ settings.default_invoice_notes|e }}" data-logo="{{ 1 if settings.logo_path else 0 }}" data-accent="{{ settings.template_accent|e }}" data-terms="{{ settings.payment_terms|e }}" data-enabled="{{ 1 if settings.designer_enabled else 0 }}">
+  <section class="designer-pal card" aria-label="Elemente">
+    <h2>Bausteine</h2><p class="small-help">Zum Hinzufügen klicken. Jeder Block kann danach frei verschoben werden.</p>
+    <div id="designer-tools" class="designer-tools">
+      <button type="button" data-add="text">＋ Eigener Text</button>
+      <button type="button" data-add="image">＋ Bild</button>
+      <button type="button" data-add="box">＋ Farbfläche</button>
+      <button type="button" data-add="line">＋ Linie</button>
+      <button type="button" data-add="subject">＋ Betreff</button>
+      <button type="button" data-add="notes">＋ Bemerkungen</button>
+      <button type="button" data-add="terms">＋ Zahlungsziel</button>
+      <button type="button" data-add="footer">＋ Fusszeile</button>
+      <button type="button" data-add="uid">＋ UID / MWST</button>
+      <button type="button" data-add="logo">＋ Logo</button>
+    </div>
+    <div class="designer-panel-label">Elementliste <span id="designer-count"></span></div>
+    <div id="designer-block-list" class="designer-block-list" role="listbox" aria-label="Layout-Elemente"></div>
+    <div class="designer-panel-tip">Pflichtfelder wie Rechnungsnummer, Empfänger, Tabelle und Total lassen sich verschieben, aber nicht löschen.</div>
+  </section>
+
+  <section class="designer-stage" aria-label="A4 Arbeitsfläche">
+    <div class="designer-stage-bar">
+      <div><strong>DIN A4 · Hochformat</strong><small>210 × 297 mm · Ansicht der ersten Seite · Mobil seitlich scrollen</small></div>
+      <div class="designer-stage-options"><label><input type="checkbox" id="designer-snap" checked> 5-mm-Raster</label>
+       <button type="button" id="designer-undo" class="btn btn-sm" title="Rückgängig (Strg+Z)">↶</button>
+       <button type="button" id="designer-redo" class="btn btn-sm" title="Wiederholen (Strg+Y)">↷</button></div>
+    </div>
+    <div class="designer-paper-scroll"><div class="designer-paper" id="designer-paper" aria-label="Verschiebbare A4-Seite"><div id="designer-rulers" aria-hidden="true"></div><div id="designer-layer"></div><span class="designer-watermark">MUSTER · NICHT VERSENDEN</span></div></div>
+    <p class="designer-stage-foot">Pfeiltasten: 1 mm verschieben · Umschalt + Pfeiltasten: 5 mm · <kbd>Entf</kbd>: eigenen Block löschen · <kbd>Strg</kbd>+<kbd>Z</kbd>: Rückgängig</p>
+  </section>
+
+  <aside class="designer-properties card" aria-label="Eigenschaften">
+    <h2>Eigenschaften</h2>
+    <p class="small-help" id="designer-selection-hint">Wähle ein Element auf der Seite aus.</p>
+    <div id="designer-property-fields" hidden>
+      <div class="designer-prop-section"><span id="designer-selected-kind" class="designer-prop-kind"></span>
+        <div class="designer-dim-grid">
+          <label>X (mm)<input type="number" min="1" max="209" step="0.5" id="d-x"></label>
+          <label>Y (mm)<input type="number" min="1" max="296" step="0.5" id="d-y"></label>
+          <label>Breite (mm)<input type="number" min="3" max="208" step="0.5" id="d-w"></label>
+          <label>Höhe (mm)<input type="number" min="2" max="295" step="0.5" id="d-h"></label>
+        </div>
+      </div>
+      <div class="designer-prop-section"><label>Schriftgrösse <span class="small-help">(7–36 pt)</span><input id="d-size" type="number" min="7" max="36" step="1"></label>
+        <label>Farbe <input id="d-color" type="color"></label>
+        <label>Textausrichtung <select id="d-align"><option value="left">Links</option><option value="center">Zentriert</option><option value="right">Rechts</option></select></label>
+      </div>
+      <div class="designer-prop-section" id="d-text-block" hidden><label>Eigener Text
+       <textarea id="d-text" rows="5" maxlength="600" placeholder="Text oder Platzhalter wie {kunde}"></textarea></label>
+       <small>Platzhalter: {nummer}, {kunde}, {firma}, {datum}, {faellig}, {betrag}, {waehrung}, {iban}, {betreff}</small>
+      </div>
+      <div class="designer-prop-section" id="d-image-block" hidden><label>Eigenes Bild hochladen <input type="file" id="d-file" accept="image/png,image/jpeg,image/webp"></label>
+       <button type="button" id="d-upload" class="btn btn-sm">Bild hochladen</button><p class="small-help" id="d-upload-status" role="status"></p>
+       <small>JPG, PNG oder WEBP bis 4 MB. Das Bild wird lokal pro Geschäft gespeichert.</small>
+      </div>
+      <div class="designer-control-row"><button type="button" class="btn btn-sm" id="d-duplicate">Duplizieren</button><button type="button" class="btn btn-sm" id="d-lock">Sperren</button><button type="button" class="btn btn-sm" id="d-delete">Entfernen</button></div>
+    </div>
+    <div class="designer-tips"><b>Tipps für professionelle Rechnungen</b><p>Pflichtangaben und Positionstabelle gut lesbar halten. Die PDF-Vorschau zeigt die verbindliche Ausgabe, auch mit mehreren Seiten.</p><p>Neue Layouts sind zunächst nur Entwürfe. Bestehende archivierte Rechnungen ändern sich nicht.</p></div>
+  </aside>
+</div>
+<section class="card designer-save-card" aria-labelledby="designer-save-title">
+ <div><h2 id="designer-save-title">Vorlage speichern und testen</h2>
+  <p class="small-help">Mit „Freies Layout aktivieren“ verwendest du dieses Design bei neuen PDF-Belegen. Ohne Aktivierung bleibt das bisherige klassische Design erhalten.</p></div>
+ <form id="designer-save-form" method="post" action="{{ ingress_prefix }}/templates/designer/save">
+   <input type="hidden" name="_csrf" value="{{ csrf }}" id="designer-csrf">
+   <input type="hidden" name="designer_layout" id="designer-layout-json">
+   <label class="designer-activation"><input type="checkbox" name="designer_enabled" id="designer-enabled" value="1" {% if settings.designer_enabled %}checked{% endif %}> Freies Layout für neue PDFs aktivieren</label>
+   <div class="designer-save-actions">
+      <label>PDF-Muster als <select name="_preview_kind" id="designer-kind"><option value="invoice">Rechnung</option><option value="quote">Offerte</option><option value="credit">Gutschrift</option></select></label>
+      <button type="submit" class="btn btn-secondary" id="designer-pdf-preview" formaction="{{ ingress_prefix }}/templates/designer/preview.pdf" formtarget="_blank">PDF-Muster ansehen</button>
+      <button type="submit" class="btn btn-primary" id="designer-save">Aktive Vorlage speichern</button>
+   </div>
+   <div class="designer-new-save"><label>Oder als neue Vorlage speichern <input name="template_name" id="designer-template-name" maxlength="60" placeholder="z. B. Rechnung mit grossem Logo"></label>
+     <button type="submit" class="btn" id="designer-save-as" name="save_as" value="1">Neue Variante sichern</button></div>
+   <p class="designer-save-status" id="designer-status" role="status">Noch keine Änderungen</p>
+ </form>
+</section>
+<script id="designer-initial" type="application/json">{{ layout|tojson }}</script>
+<script src="{{ ingress_prefix }}/static/designer.js" defer></script>
+{% endblock %}

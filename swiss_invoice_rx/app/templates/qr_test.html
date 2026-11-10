@@ -1,0 +1,26 @@
+{% extends 'base.html' %}{% block title %}Swiss QR-Testzentrum{% endblock %}{% block content %}<div class="hi-page-helpers"><a class="btn btn-sm" href="{{ ingress_prefix }}/settings#hi-bank">Bank- und QR-Einstellungen</a><a class="btn btn-sm" href="{{ ingress_prefix }}/systemcheck">Systemcheck</a></div>
+<div class="page-head"><div><span class="eyebrow">SWISS QR-CODE / TESTZENTRUM</span><h1>QR-Zahlteil vorab pr&uuml;fen</h1><p>Testen, wie deine QR-Einstellungen mit einer Beispielrechnung zusammenarbeiten. Es werden keine Rechnungen oder Zahlungen gespeichert.</p></div><a href="{{ ingress_prefix }}/settings" class="btn">&larr; Einstellungen</a></div>
+<div class="qr-test-layout">
+<form action="{{ ingress_prefix }}/qr-test" method="post" class="card form-section" id="qr-test-form"><input name="_csrf" type="hidden" value="{{ csrf }}">
+  <div class="section-title"><h2>1. Bank und Referenz</h2><span class="badge-light">Nur Testdaten</span></div>
+  <div class="form-grid"><div class="field span-2"><label>IBAN oder QR-IBAN *</label><input name="iban" required value="{{ fields.iban }}" placeholder="CH93 ..." spellcheck="false"><small>Die IBAN wird anhand der Pr&uuml;fziffer gepr&uuml;ft; der Test ersetzt keine Best&auml;tigung durch deine Bank.</small></div>
+  <div class="field"><label>Referenzart</label><select name="qr_reference_type">{% for value,label in [('AUTO','Automatisch'),('SCOR','SCOR - Creditor Reference'),('NON','NON - ohne Referenz'),('QRR','QRR - QR-Referenz')] %}<option value="{{ value }}" {% if fields.qr_reference_type==value %}selected{% endif %}>{{ label }}</option>{% endfor %}</select></div>
+  <div class="field"><label>W&auml;hrung</label><select name="currency"><option value="CHF" {% if fields.currency=='CHF' %}selected{% endif %}>CHF</option><option value="EUR" {% if fields.currency=='EUR' %}selected{% endif %}>EUR</option></select></div>
+  <div class="field"><label>Testbetrag *</label><input type="number" step="0.01" min="0.01" name="amount" required value="{{ fields.amount }}"></div>
+  <div class="field"><label>Test-Rechnungsnummer</label><input name="invoice_number" maxlength="40" required value="{{ fields.invoice_number }}"></div>
+  <div class="field span-2"><label>Mitteilung (Vorlage)</label><input name="qr_message" maxlength="140" value="{{ fields.qr_message }}" placeholder="Rechnung {number}"><small><code>{number}</code> wird durch die Testnummer ersetzt.</small></div></div>
+  <div class="section-title mt-3"><h2>2. Testkunde (strukturierte Adresse)</h2></div><div class="form-grid three">
+  <div class="field span-3"><label>Name / Firma *</label><input name="name" required value="{{ fields.name }}"></div><div class="field span-2"><label>Strasse</label><input name="street" value="{{ fields.street }}"></div><div class="field"><label>Hausnummer</label><input name="building" value="{{ fields.building }}"></div><div class="field"><label>PLZ *</label><input name="zip" required value="{{ fields.zip }}"></div><div class="field"><label>Ort *</label><input name="city" required value="{{ fields.city }}"></div><div class="field"><label>Land *</label><input name="country" maxlength="2" required value="{{ fields.country }}"></div></div>
+  <div class="flex-row mt-3"><button type="submit" class="btn btn-primary" name="format" value="preview">QR-Code pr&uuml;fen &rarr;</button><button type="submit" class="btn" name="format" value="pdf" formtarget="_blank">Test-PDF erstellen</button></div>
+</form>
+<div class="qr-test-output">
+  {% if test_error %}<div class="notice error" role="alert"><strong>QR-Test nicht bestanden.</strong> {{ test_error }}</div>{% endif %}
+  {% if result %}<section class="card qr-result-card"><div class="section-title"><h2>Test erfolgreich</h2><span class="status sent">Pr&uuml;fziffern OK</span></div>
+    <img class="qr-test-image" src="{{ result.png }}" alt="Swiss QR-Code aus den Testeingaben">
+    <div class="kv"><span>IBAN</span><b class="mono">{{ result.iban }}</b></div><div class="kv"><span>Referenztyp</span><b>{{ result.reference_type }}</b></div><div class="kv"><span>Referenz</span><b class="mono">{{ result.reference or 'Keine' }}</b></div><div class="kv"><span>Mitteilung</span><b>{{ result.message or 'Keine' }}</b></div>
+    <details class="mt-3"><summary>Technischen QR-Inhalt anzeigen</summary><div class="field mt-2"><textarea readonly rows="7" aria-label="QR-Payload">{{ result.payload }}</textarea></div></details></section>
+  {% else %}<section class="card qr-empty-result"><div class="qr-placeholder">&#9638;</div><h2>QR-Code live pr&uuml;fen</h2><p>F&uuml;lle die Angaben links aus und klicke auf <b>QR-Code pr&uuml;fen</b>. Hier erscheinen QR-Vorschau und Referenzdaten.</p></section>{% endif %}
+  <div class="info-box"><b>Testhinweis:</b> QR-Code und Test-PDF k&ouml;nnen echte Kontodaten enthalten. Nicht an Kunden versenden. Ein erfolgreicher Syntax-Test ersetzt keinen Testscan mit deiner Bank-App oder eine Freigabe durch dein Finanzinstitut.</div>
+  <div class="info-box mt-2"><b>SIX-Umstellung:</b> Strukturierte Adressen werden unterst&uuml;tzt. Die Software ber&uuml;cksichtigt die Einschr&auml;nkung f&uuml;r QRR + CHF gem&auml;ss Version 2.4 (g&uuml;ltig ab 14. November 2026).</div>
+</div></div>
+{% endblock %}

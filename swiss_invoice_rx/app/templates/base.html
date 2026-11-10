@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="de-CH"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{% block title %}Swiss-invoice-RX{% endblock %} · Swiss-invoice-RX</title>
+<meta name="swiss-invoice-base" content="{{ ingress_prefix }}">
+<link rel="stylesheet" href="{{ ingress_prefix }}/static/app.css"></head>
+<body class="{% if not user %}auth-page{% endif %}">
+{% if user %}
+<div class="shell">
+{% set nav_path = request.url.path %}
+<aside class="sidebar" id="main-sidebar" aria-label="Hauptnavigation" data-user-id="{{ user.id }}" data-document-kind="{{ invoice.kind if invoice is defined and invoice else '' }}">
+ <a class="brand" href="{{ ingress_prefix }}/dashboard"><span class="brand-icon">S<span>.</span></span><span><b>Swiss-invoice-RX</b><small>RECHNUNGEN / CH</small></span></a>
+ <div class="work-switch"><span class="switch-label">AKTIVES GESCHÄFT</span>
+ <form action="{{ ingress_prefix }}/company/switch" method="post"><input type="hidden" name="_csrf" value="{{ csrf }}">
+ <select name="company_id" id="company-switch" aria-label="Geschäft auswählen">{% for c in company_menu %}<option value="{{ c.id }}" {% if active_company and c.id==active_company.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select></form>{% if user.restricted_company_id %}<small class="hi-business-scope">🔒 Nur dieses Geschäft</small>{% endif %}</div>
+ <nav class="sidebar-nav" aria-label="Arbeitsbereiche">
+  <div class="nav-label">SCHNELLZUGRIFF</div>
+  <a href="{{ ingress_prefix }}/dashboard" class="nav-link nav-pinned" data-nav-key="dashboard"><span aria-hidden="true">▦</span> Dashboard</a>
+  <a href="{{ ingress_prefix }}/search" class="nav-link nav-pinned" data-nav-key="search"><span aria-hidden="true">⌕</span> Alles durchsuchen</a>
+  <div class="nav-group-heading">ARBEITSBEREICHE</div>
+  <details class="nav-group" data-nav-group="sales" {% if nav_path.startswith('/invoices') or nav_path.startswith('/recurring') %}open{% endif %}>
+   <summary class="nav-group-summary"><span class="nav-group-icon" aria-hidden="true">▤</span><span>Verkauf</span><span class="nav-group-count">4</span></summary>
+   <div class="nav-group-links">
+    <a href="{{ ingress_prefix }}/invoices?kind=invoice" class="nav-link" data-nav-key="invoices"><span aria-hidden="true">▤</span> Rechnungen</a>
+    <a href="{{ ingress_prefix }}/invoices?kind=quote" class="nav-link" data-nav-key="quotes"><span aria-hidden="true">◫</span> Offerten</a>
+    <a href="{{ ingress_prefix }}/invoices?kind=credit" class="nav-link" data-nav-key="credits"><span aria-hidden="true">↩</span> Gutschriften</a>
+    <a href="{{ ingress_prefix }}/recurring" class="nav-link" data-nav-key="recurring"><span aria-hidden="true">◷</span> Wiederkehrend</a>
+   </div>
+  </details>
+  <details class="nav-group" data-nav-group="contacts" {% if nav_path.startswith('/customers') or nav_path.startswith('/items') or nav_path.startswith('/stock') %}open{% endif %}>
+   <summary class="nav-group-summary"><span class="nav-group-icon" aria-hidden="true">♙</span><span>Kunden &amp; Artikel</span><span class="nav-group-count">2</span></summary>
+   <div class="nav-group-links">
+    <a href="{{ ingress_prefix }}/customers" class="nav-link" data-nav-key="customers"><span aria-hidden="true">♙</span> Kunden</a>
+    <a href="{{ ingress_prefix }}/items" class="nav-link" data-nav-key="items"><span aria-hidden="true">▣</span> Artikel &amp; Inventar</a>
+   </div>
+  </details>
+  <details class="nav-group" data-nav-group="finance" {% if nav_path.startswith('/receivables') or nav_path.startswith('/bank') %}open{% endif %}>
+   <summary class="nav-group-summary"><span class="nav-group-icon" aria-hidden="true">$</span><span>Finanzen</span><span class="nav-group-count">2</span></summary>
+   <div class="nav-group-links">
+    <a href="{{ ingress_prefix }}/receivables" class="nav-link" data-nav-key="receivables"><span aria-hidden="true">$</span> Offene Posten</a>
+    <a href="{{ ingress_prefix }}/bank" class="nav-link" data-nav-key="bank"><span aria-hidden="true">⇄</span> Bankabgleich</a>
+   </div>
+  </details>
+  <details class="nav-group" data-nav-group="documents" {% if nav_path.startswith('/archive') or nav_path.startswith('/reports') %}open{% endif %}>
+   <summary class="nav-group-summary"><span class="nav-group-icon" aria-hidden="true">▥</span><span>Dokumente &amp; Berichte</span><span class="nav-group-count">2</span></summary>
+   <div class="nav-group-links">
+    <a href="{{ ingress_prefix }}/archive" class="nav-link" data-nav-key="archive"><span aria-hidden="true">▥</span> Dokumentenarchiv</a>
+    <a href="{{ ingress_prefix }}/reports" class="nav-link" data-nav-key="reports"><span aria-hidden="true">◩</span> Auswertungen</a>
+   </div>
+  </details>
+  {% if active_company and active_company.role=='admin' %}
+  <div class="nav-group-heading nav-group-heading-admin">ADMINISTRATION</div>
+  <details class="nav-group" data-nav-group="design" {% if nav_path.startswith('/templates') or nav_path.startswith('/qr-test') %}open{% endif %}>
+   <summary class="nav-group-summary"><span class="nav-group-icon" aria-hidden="true">◈</span><span>Gestaltung &amp; QR</span><span class="nav-group-count">3</span></summary>
+   <div class="nav-group-links">
+    <a href="{{ ingress_prefix }}/templates" class="nav-link" data-nav-key="templates"><span aria-hidden="true">◇</span> Vorlagen-Studio</a>
+    <a href="{{ ingress_prefix }}/templates/designer" class="nav-link" data-nav-key="designer"><span aria-hidden="true">▧</span> Freier Designer</a>
+    <a href="{{ ingress_prefix }}/qr-test" class="nav-link" data-nav-key="qr-test"><span aria-hidden="true">▢</span> QR-Testzentrum</a>
+   </div>
+  </details>
+  <details class="nav-group" data-nav-group="admin" {% if nav_path.startswith('/settings') or nav_path.startswith('/team') or nav_path.startswith('/activity') or nav_path.startswith('/backup') or nav_path.startswith('/systemcheck') %}open{% endif %}>
+   <summary class="nav-group-summary"><span class="nav-group-icon" aria-hidden="true">⚙</span><span>Einstellungen &amp; System</span><span class="nav-group-count">5</span></summary>
+   <div class="nav-group-links">
+    <a href="{{ ingress_prefix }}/settings" class="nav-link" data-nav-key="settings"><span aria-hidden="true">⚙</span> Firmendaten</a>
+    <a href="{{ ingress_prefix }}/team" class="nav-link" data-nav-key="team"><span aria-hidden="true">♧</span> Benutzer</a>
+    <a href="{{ ingress_prefix }}/activity" class="nav-link" data-nav-key="activity"><span aria-hidden="true">◴</span> Aktivitäten</a>
+    <a href="{{ ingress_prefix }}/backup" class="nav-link" data-nav-key="backup"><span aria-hidden="true">☁</span> Sicherung</a>
+    <a href="{{ ingress_prefix }}/systemcheck" class="nav-link" data-nav-key="systemcheck"><span aria-hidden="true">✓</span> Systemcheck</a>
+   </div>
+  </details>
+  {% endif %}
+  <div class="nav-help-divider"></div>
+  <a href="{{ ingress_prefix }}/help" class="nav-link nav-help-link" data-nav-key="help"><span aria-hidden="true">?</span> Hilfe &amp; Einstieg</a>
+ </nav>
+ <div class="sidebar-bottom">{% if user.is_superadmin %}<a class="company-add" href="{{ ingress_prefix }}/companies/new">＋ Weiteres Geschäft</a>{% endif %}
+ <div class="user-card"><div class="avatar">{{ user.full_name[:1]|upper }}</div><div><b>{{ user.full_name }}</b><small>{{ user.email }}</small></div></div>
+ <a class="logout-btn" href="{{ ingress_prefix }}/account">Mein Konto / Passwort ändern</a>
+ <form action="{{ ingress_prefix }}/logout" method="post"><input type="hidden" name="_csrf" value="{{ csrf }}"><button type="submit" class="logout-btn">Abmelden ↗</button></form>
+ </div>
+</aside>
+<div class="sidebar-overlay" id="sidebar-overlay" hidden></div>
+<div class="main-column"><header class="topbar"><div class="topbar-left"><button type="button" class="mobile-menu-button" id="mobile-menu-toggle" aria-controls="main-sidebar" aria-expanded="false" aria-label="Menü öffnen">☰</button><span class="online-dot"></span> Home Assistant · lokal · <strong>{{ active_company.name if active_company else 'Willkommen' }}</strong></div>
+<div class="topbar-actions"><button type="button" class="quick-search-button" data-open-global-search title="Suche in Rechnungen, Kunden und Artikeln (Strg+K)" aria-label="Globale Suche öffnen"><span>⌕</span> <b>Suche</b><kbd>Strg K</kbd></button>{% if active_company and active_company.role!='viewer' %}<a class="btn btn-sm btn-primary" href="{{ ingress_prefix }}/invoices/new">＋ Neue Rechnung</a>{% endif %}<span class="topbar-date">{{ today }}</span></div></header>
+<main class="content">
+{% if flash %}<div class="notice {{ flash[0] }}">{{ flash[1] }}</div>{% endif %}
+{% block content %}{% endblock %}
+</main><footer class="app-footer">Swiss-invoice-RX 2.3 · Lokale Rechnungsverwaltung · Schweiz</footer></div>
+</div>
+{% else %}
+<div class="auth-layout"><div class="auth-visual"><div class="auth-wordmark">Swiss-invoice<span> RX</span></div><div class="auth-copy"><span class="eyebrow">YOUR BUSINESS. YOUR DATA.</span><h1>Rechnungen.<br>Einfach.<br><em>Schweizerisch.</em></h1><p>Professionelle Rechnungen, sichere lokale Daten und Schweizer QR-Zahlteile in einer klaren Oberfläche.</p></div><div class="auth-deco"><span>CHF</span><span>↗</span><span>QR</span></div></div><div class="auth-panel">{% if flash %}<div class="notice {{ flash[0] }}">{{ flash[1] }}</div>{% endif %}{% block authcontent %}{% endblock %}</div></div>
+{% endif %}
+{% if user %}
+<dialog id="global-search-dialog" class="quick-search-dialog" aria-label="Globale Suche">
+ <div class="quick-search-top"><strong>⌕ Alles durchsuchen</strong><button class="quick-search-close" type="button" data-close-global-search aria-label="Suche schliessen">×</button></div>
+ <form action="{{ ingress_prefix }}/search" method="get" id="quick-search-form"><label for="quick-search-input" class="sr-only">Suche</label><input type="search" id="quick-search-input" name="q" maxlength="80" autocomplete="off" placeholder="Rechnung, Kunde, Artikel oder Projekt ..."></form>
+ <div class="quick-search-content" id="quick-search-content" aria-live="polite"><p>Mindestens 2 Zeichen eingeben. <kbd>Enter</kbd> öffnet die Ergebnisse.</p></div>
+ <div class="quick-search-bottom"><span><kbd>↑</kbd><kbd>↓</kbd> auswählen · <kbd>Enter</kbd> öffnen</span><span><kbd>Esc</kbd> schliessen</span></div>
+</dialog>
+{% endif %}
+<script src="{{ ingress_prefix }}/static/app.js" defer></script>
+</body></html>

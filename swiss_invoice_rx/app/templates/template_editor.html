@@ -1,0 +1,139 @@
+{% extends 'base.html' %}
+{% block title %}Vorlagen-Studio{% endblock %}
+{% block content %}<div class="hi-page-helpers"><a class="btn btn-sm" href="{{ ingress_prefix }}/templates/designer">Freier A4-Designer &rarr;</a><a class="btn btn-sm" href="{{ ingress_prefix }}/settings">Firmendaten</a><a class="btn btn-sm" href="{{ ingress_prefix }}/qr-test">QR-Testzentrum</a></div>
+<div class="page-head">
+  <div><span class="eyebrow">GESTALTUNG / {{ settings.name }}</span>
+    <h1>Vorlagen-Studio</h1>
+    <p>Eigene Designs speichern, Layout anpassen und vor dem Versand als echte PDF-Muster ansehen.</p>
+  </div>
+  <div class="page-actions"><a class="btn btn-primary" href="{{ ingress_prefix }}/templates/designer">&#9638; Freier Drag-and-Drop-Designer</a><a class="btn" href="{{ ingress_prefix }}/settings">&larr; Firmendaten</a><a class="btn btn-secondary" href="{{ ingress_prefix }}/templates/preview.pdf" target="_blank" rel="noopener">Gespeichertes PDF ansehen</a></div>
+</div>
+<div class="studio-intro"><span class="studio-intro-icon" aria-hidden="true">&#10003;</span><span><strong>Sicher ausprobieren:</strong> Die rechte Vorschau aktualisiert sich sofort. Mit <b>PDF-Vorschau (ohne Speichern)</b> pr&uuml;fst du dein A4-Layout. Erst <b>Vorlage speichern</b> &uuml;bernimmt deine &Auml;nderungen. Der QR-Zahlteil bleibt unabh&auml;ngig vom Design normiert.</span></div>
+<section class="card studio-library" aria-labelledby="library-title">
+  <div class="section-title"><div><h2 id="library-title">Meine Vorlagen</h2><p class="small-help">Pro Gesch&auml;ft separat. Aktiviere eine Vorlage, um sie f&uuml;r neue Rechnungen zu benutzen.</p></div><span class="studio-library-count">{{ library|length }} / 20 gespeichert</span></div>
+  <div class="studio-library-grid">
+    {% for item in library %}
+    <div class="studio-library-card {% if item.active %}is-active{% endif %}">
+      <div class="studio-library-info"><span class="studio-library-icon" aria-hidden="true">&#9671;</span><div><strong>{{ item.name }}</strong><small>{% if item.active %}Aktiv &ndash; wird aktuell verwendet{% else %}Gespeichertes Design{% endif %}</small></div></div>
+      <div class="studio-library-actions">
+        {% if item.active %}<span class="studio-active-label">Aktiv</span>{% else %}
+        <form method="post" action="{{ ingress_prefix }}/templates/activate"><input type="hidden" name="_csrf" value="{{ csrf }}"><input type="hidden" name="template_id" value="{{ item.id }}"><button class="btn btn-sm btn-primary" type="submit">Aktivieren</button></form>
+        <form method="post" action="{{ ingress_prefix }}/templates/delete" data-confirm="Vorlage &quot;{{ item.name|e }}&quot; wirklich entfernen?"><input type="hidden" name="_csrf" value="{{ csrf }}"><input type="hidden" name="template_id" value="{{ item.id }}"><button class="btn btn-sm" type="submit">L&ouml;schen</button></form>
+        {% endif %}
+      </div>
+      <details class="studio-rename"><summary>Umbenennen</summary>
+        <form method="post" action="{{ ingress_prefix }}/templates/rename" class="studio-rename-form"><input type="hidden" name="_csrf" value="{{ csrf }}"><input type="hidden" name="template_id" value="{{ item.id }}">
+          <label class="small-help" for="rename-{{ item.id }}">Neuer Name</label><input id="rename-{{ item.id }}" name="template_name" maxlength="60" required value="{{ item.name }}"><button type="submit" class="btn btn-sm">Name speichern</button>
+        </form>
+      </details>
+    </div>
+    {% endfor %}
+  </div>
+  <p class="small-help mt-3">&Auml;nderungen am aktuellen Design werden erst mit &laquo;Aktive Vorlage speichern&raquo; &uuml;bernommen. &laquo;Als neue Vorlage sichern&raquo; legt eine neue Variante an.</p>
+</section>
+<div class="studio-layout">
+  <form id="template-studio" method="post" action="{{ ingress_prefix }}/templates" class="studio-form">
+    <input name="_csrf" type="hidden" value="{{ csrf }}">
+    <input type="hidden" name="designer_enabled" value="{{ 1 if settings.designer_enabled else 0 }}">
+    <input type="hidden" name="designer_layout" value="{{ settings.designer_layout|e }}">
+    <section class="card form-section"><div class="section-title"><h2>01 / Erscheinungsbild</h2><span class="small-help">Design und Tabellen</span></div>
+      <p class="small-help">Schnell starten: Ein Design w&auml;hlen und danach jedes Detail nach Wunsch ver&auml;ndern.</p>
+      <div class="studio-presets" role="group" aria-label="Schnelldesigns">
+        <button type="button" class="studio-preset" data-preset="business"><span class="preset-thumb preset-blue"><i></i><i></i><i></i></span><strong>Gesch&auml;ftlich</strong><small>Blau, klar</small></button>
+        <button type="button" class="studio-preset" data-preset="elegant"><span class="preset-thumb preset-elegant"><i></i><i></i><i></i></span><strong>Elegant</strong><small>Petrol, dezent</small></button>
+        <button type="button" class="studio-preset" data-preset="simple"><span class="preset-thumb preset-minimal"><i></i><i></i><i></i></span><strong>Schlicht</strong><small>Minimal, kompakt</small></button>
+      </div>
+      <div class="field mb-3"><label for="tpl-style">Design-Stil</label><select name="template_style" id="tpl-style">
+        <option value="modern" {% if settings.template_style=='modern' %}selected{% endif %}>Modern - mit Farbakzent</option>
+        <option value="classic" {% if settings.template_style=='classic' %}selected{% endif %}>Klassisch - dezent</option>
+        <option value="minimal" {% if settings.template_style=='minimal' %}selected{% endif %}>Minimal - reduziert</option>
+      </select></div>
+      <div class="field mb-3"><label for="tpl-color">Akzentfarbe</label><div class="studio-colors"><input type="color" name="template_accent" id="tpl-color" value="{{ settings.template_accent }}" aria-label="Eigene Akzentfarbe">
+        <button type="button" data-accent="#2563eb" style="--swatch:#2563eb" aria-label="Blau"></button>
+        <button type="button" data-accent="#0f766e" style="--swatch:#0f766e" aria-label="Petrol"></button>
+        <button type="button" data-accent="#7c3aed" style="--swatch:#7c3aed" aria-label="Violett"></button>
+        <button type="button" data-accent="#b45309" style="--swatch:#b45309" aria-label="Goldbraun"></button>
+        <button type="button" data-accent="#334155" style="--swatch:#334155" aria-label="Anthrazit"></button>
+      </div></div>
+      <div class="form-grid">
+        <div class="field"><label for="tpl-header">Kopfbereich</label><select name="template_header_layout" id="tpl-header">
+          <option value="standard" {% if settings.template_header_layout=='standard' %}selected{% endif %}>Logo links / Adresse rechts</option>
+          <option value="mirrored" {% if settings.template_header_layout=='mirrored' %}selected{% endif %}>Logo rechts / Adresse links</option>
+        </select></div>
+        <div class="field"><label for="tpl-size">Titelgr&ouml;sse</label><select name="template_title_size" id="tpl-size">
+          {% for size in (22,26,30,34) %}<option value="{{ size }}" {% if settings.template_title_size|int==size %}selected{% endif %}>{{ size }} pt</option>{% endfor %}
+        </select></div>
+        <div class="field span-2"><label for="tpl-density">Abstand zwischen Rechnungspositionen</label><select name="template_density" id="tpl-density">
+          <option value="compact" {% if settings.template_density=='compact' %}selected{% endif %}>Kompakt - viele Positionen</option>
+          <option value="normal" {% if settings.template_density=='normal' %}selected{% endif %}>Normal - ausgewogen</option>
+          <option value="spacious" {% if settings.template_density=='spacious' %}selected{% endif %}>Grossz&uuml;gig - mehr Weissraum</option>
+        </select></div>
+        <div class="field"><label for="tpl-table">Tabellenoptik</label><select name="template_table_style" id="tpl-table">
+          <option value="lines" {% if settings.template_table_style=='lines' %}selected{% endif %}>Trennlinien</option>
+          <option value="zebra" {% if settings.template_table_style=='zebra' %}selected{% endif %}>Abwechselnde Zeilenfarbe</option>
+          <option value="clean" {% if settings.template_table_style=='clean' %}selected{% endif %}>Ohne Trennlinien</option>
+        </select></div>
+        <div class="field"><label for="tpl-body">Schriftgr&ouml;sse der Positionen</label><select name="template_body_size" id="tpl-body">
+          {% for size in (8,9,10) %}<option value="{{ size }}" {% if settings.template_body_size|int==size %}selected{% endif %}>{{ size }} pt</option>{% endfor %}
+        </select></div>
+        <div class="field span-2"><label for="tpl-logo-size">Logo-Breite im PDF</label><select name="template_logo_size" id="tpl-logo-size">
+          <option value="80" {% if settings.template_logo_size|int==80 %}selected{% endif %}>Klein (80 pt)</option>
+          <option value="110" {% if settings.template_logo_size|int==110 %}selected{% endif %}>Normal (110 pt)</option>
+          <option value="140" {% if settings.template_logo_size|int==140 %}selected{% endif %}>Gross (140 pt)</option>
+        </select></div>
+      </div>
+    </section>
+    <section class="card form-section"><div class="section-title"><h2>02 / Inhalte und Sichtbarkeit</h2></div>
+      <div class="field mb-3"><label for="tpl-title">Rechnungs&uuml;berschrift</label><input name="template_title" id="tpl-title" maxlength="60" value="{{ settings.template_title }}" placeholder="Rechnung"></div>
+      <div class="studio-switches">
+        <label><input type="checkbox" name="template_show_logo" id="tpl-logo" value="1" {% if settings.template_show_logo %}checked{% endif %}><span>Firmenlogo anzeigen</span></label>
+        <label><input type="checkbox" name="template_show_customer_email" id="tpl-customer-email" value="1" {% if settings.template_show_customer_email %}checked{% endif %}><span>E-Mail des Kunden in der Anschrift anzeigen</span></label>
+        <label><input type="checkbox" name="template_show_service_date" id="tpl-service" value="1" {% if settings.template_show_service_date %}checked{% endif %}><span>Leistungsdatum anzeigen</span></label>
+        <label><input type="checkbox" name="template_show_tax_breakdown" id="tpl-tax" value="1" {% if settings.template_show_tax_breakdown %}checked{% endif %}><span>MWST nach Steuersatz ausweisen</span></label>
+        <label><input type="checkbox" name="template_show_payment_terms" id="tpl-terms" value="1" {% if settings.template_show_payment_terms %}checked{% endif %}><span>Zahlungsbedingungen unter dem Total anzeigen</span></label>
+        <label><input type="checkbox" name="template_show_page_numbers" id="tpl-pages" value="1" {% if settings.template_show_page_numbers %}checked{% endif %}><span>Seitennummerierung im PDF anzeigen</span></label>
+      </div>
+      <p class="small-help mt-3">Bei mehreren MWST-S&auml;tzen wird die Aufteilung im PDF aus rechtlichen Gr&uuml;nden immer gezeigt. F&auml;lligkeit, Rechnungsnummer und Pflichtangaben bleiben erhalten.</p>
+    </section>
+    <section class="card form-section"><div class="section-title"><h2>03 / Standardtexte</h2></div>
+      <div class="field mb-3"><label for="tpl-default-notes">Standardtext auf <b>neuen</b> Rechnungen</label>
+        <textarea name="default_invoice_notes" id="tpl-default-notes" rows="4" maxlength="1200" placeholder="z. B. Vielen Dank f&uuml;r Ihren Auftrag.">{{ settings.default_invoice_notes }}</textarea>
+        <small>Wird bei neuen Rechnungen in das Textfeld &uuml;bernommen und kann pro Rechnung frei &uuml;berschrieben werden. Alte Rechnungen bleiben unver&auml;ndert.</small>
+      </div>
+      <div class="field mb-3"><label for="tpl-footer">Fusszeile auf allen PDF-Seiten</label><input name="template_footer" id="tpl-footer" maxlength="200" value="{{ settings.template_footer }}" placeholder="z. B. Vielen Dank f&uuml;r Ihren Auftrag."></div>
+    </section>
+    <section class="card form-section" id="studio-save-new"><div class="section-title"><h2>04 / Als neue Vorlage sichern</h2></div>
+      <p class="small-help">Praktisch f&uuml;r unterschiedliche Layouts, z. B. Standard, Grosskunden oder Dienstleistungen.</p>
+      <div class="studio-save-as"><div class="field"><label for="tpl-name">Neuer Vorlagenname</label><input id="tpl-name" name="template_name" maxlength="60" placeholder="z. B. Elegant mit Petrol"></div>
+      <button type="submit" class="btn btn-secondary" formaction="{{ ingress_prefix }}/templates/save-as" id="studio-save-as">Als neue Vorlage sichern</button></div>
+    </section>
+    <div class="studio-actions"><button type="button" class="btn" id="studio-undo">Eingaben verwerfen</button>
+      <button class="btn btn-secondary" type="submit" formaction="{{ ingress_prefix }}/templates/preview.pdf" formtarget="_blank" id="studio-pdf">PDF-Vorschau ohne Speichern</button>
+      <button class="btn btn-primary" type="submit" id="studio-save">Aktive Vorlage speichern</button>
+    </div>
+  </form>
+  <div class="studio-preview-column">
+    <div class="studio-preview-head"><div><h2>Live-Vorschau</h2><p class="small-help">Das A4-PDF aus dem Button ist die verbindliche Druckansicht.</p></div><span class="studio-state" id="studio-state" role="status">Gespeichert</span></div>
+    <div class="studio-preview-toolbar"><label for="tpl-preview-kind">Dokumenttyp testen</label><select id="tpl-preview-kind" name="_preview_kind" form="template-studio"><option value="invoice">Rechnung</option><option value="quote">Offerte</option><option value="credit">Gutschrift</option></select></div>
+    <div class="studio-preview-container"><article class="studio-paper" id="invoice-preview" data-tax-rate="{{ settings.default_tax if settings.tax_registered else '0' }}" data-currency="{{ settings.currency }}" aria-label="Musterrechnung">
+      <div class="studio-paper-top"><div class="studio-paper-brand" id="preview-brand">
+          {% if settings.logo_path %}<img id="studio-logo" src="{{ ingress_prefix }}/media/logo" alt="Firmenlogo">{% endif %}
+          <strong id="studio-wordmark">{{ settings.name }}</strong>
+        </div><div class="studio-paper-address">{{ settings.name }}<br>{{ settings.street }} {{ settings.building }}<br>{{ settings.zip }} {{ settings.city }}<br>{{ settings.email }}</div></div>
+      <div class="studio-paper-recipient"><strong>Musterkunde AG</strong><br>Musterstrasse 8<br>8000 Z&uuml;rich<br><span id="preview-customer-email" {% if not settings.template_show_customer_email %}hidden{% endif %}>kontakt@musterkunde.example</span></div>
+      <h3 id="preview-title">{{ settings.template_title }}</h3>
+      <div class="studio-paper-meta"><span>Nr. RE-2026-00001<br>Datum: 08.11.2026</span><span>F&auml;llig: 08.12.2026<br><span id="preview-service" {% if not settings.template_show_service_date %}hidden{% endif %}>Leistungsdatum: 08.11.2026</span></span></div>
+      <table class="studio-paper-table"><thead><tr><th>Beschreibung</th><th>Menge</th><th>Preis</th><th>Total</th></tr></thead><tbody>
+        <tr><td>Beratungsleistung</td><td>2 Std.</td><td>125.00</td><td>250.00</td></tr>
+        <tr><td>Projektpauschale</td><td>1 Stk.</td><td>45.00</td><td>45.00</td></tr>
+      </tbody></table>
+      <div class="studio-paper-totals"><p>Zwischensumme <b id="preview-subtotal">CHF 295.00</b></p><p id="preview-tax">MWST <b id="preview-tax-amount">CHF 23.90</b></p><p class="studio-paper-total">TOTAL <strong id="preview-grand-total">CHF 318.90</strong></p></div>
+      <p class="studio-paper-notes" id="preview-notes">{{ settings.default_invoice_notes or 'Vielen Dank fuer Ihren Auftrag.' }}</p>
+      <p class="studio-paper-terms" id="preview-terms" {% if not settings.template_show_payment_terms %}hidden{% endif %}>{{ settings.payment_terms.replace('{days}',settings.default_due_days|string) }}</p>
+      <div class="studio-paper-footer" id="preview-footer">{{ settings.template_footer or settings.footer_text }}</div><span class="studio-paper-page" id="preview-pages" {% if not settings.template_show_page_numbers %}hidden{% endif %}>Seite 1</span>
+    </article></div>
+    <div class="studio-preview-help"><strong>Wichtig zur QR-Rechnung:</strong> Gestaltung &auml;ndert nicht den standardisierten Swiss-QR-Zahlteil. Die PDF-Musteransicht enth&auml;lt bewusst keinen zahlbaren QR-Code und ist als Entwurf markiert.</div>
+  </div>
+</div>
+<script src="{{ ingress_prefix }}/static/template_studio.js" defer></script>
+{% endblock %}

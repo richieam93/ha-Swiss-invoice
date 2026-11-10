@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}Offene Posten{% endblock %}
+{% block content %}
+<div class="page-head"><div><span class="eyebrow">ZAHLUNGEN & MAHNUNGEN</span><h1>Offene Posten.</h1>
+<p>Alle noch nicht vollst&auml;ndig bezahlten Rechnungen und ihre F&auml;lligkeiten, nach W&auml;hrung getrennt.</p></div>
+<div class="page-actions"><a class="btn" href="{{ ingress_prefix }}/receivables?currency=CHF">CHF</a>
+<a class="btn" href="{{ ingress_prefix }}/receivables?currency=EUR">EUR</a>
+<a class="btn btn-secondary" href="{{ ingress_prefix }}/receivables.csv?currency={{ selected_currency }}&amp;q={{ q|urlencode }}&amp;due={{ due }}">&darr; CSV Export</a></div></div>
+<div class="cards ageing-grid"><div class="card metric"><div class="metric-top">Gesamt offen</div><div class="metric-value">{{ total|money }} <small>{{ selected_currency }}</small></div><div class="metric-foot">Summe aus offenen Forderungen</div></div>
+<div class="card metric"><div class="metric-top">Noch nicht &uuml;berf&auml;llig</div><div class="metric-value">{{ groups.future|money }}</div><div class="metric-foot">Heute oder sp&auml;ter f&auml;llig</div></div>
+<div class="card metric"><div class="metric-top">1 bis 30 Tage</div><div class="metric-value">{{ groups['1_30']|money }}</div><div class="metric-foot">&Uuml;berf&auml;llig</div></div>
+<div class="card metric"><div class="metric-top">31 bis 60 Tage</div><div class="metric-value">{{ groups['31_60']|money }}</div><div class="metric-foot">&Uuml;berf&auml;llig</div></div>
+<div class="card metric"><div class="metric-top">61+ Tage</div><div class="metric-value">{{ groups['61_plus']|money }}</div><div class="metric-foot">&Uuml;berf&auml;llig</div></div></div>
+<section class="card"><form method="get" class="hi-filter-grid"><input type="hidden" name="currency" value="{{ selected_currency }}"><div class="field hi-filter-wide"><label>Rechnung oder Kunde</label><input name="q" type="search" maxlength="80" placeholder="Nummer oder Kundenname" value="{{ q }}"></div><div class="field"><label>F&auml;lligkeit</label><select name="due"><option value="all" {% if due=='all' %}selected{% endif %}>Alle offenen</option><option value="overdue" {% if due=='overdue' %}selected{% endif %}>&Uuml;berf&auml;llig</option><option value="next7" {% if due=='next7' %}selected{% endif %}>F&auml;llig in 7 Tagen</option><option value="later" {% if due=='later' %}selected{% endif %}>Sp&auml;ter f&auml;llig</option></select></div><div class="hi-filter-actions"><button class="btn btn-primary">Anwenden</button><a class="btn" href="{{ ingress_prefix }}/receivables?currency={{ selected_currency }}">Zur&uuml;cksetzen</a></div></form><p class="small-help mb-2">Die Summen oben beziehen sich auf die aktuell angezeigte Auswahl. CSV exportiert dieselben offenen Posten.</p>
+<div class="table-scroll"><table class="table hi-stacked"><thead><tr><th>Rechnungsnummer</th><th>Kunde</th><th>F&auml;llig am</th><th class="num">Offener Betrag</th><th>Status</th><th></th></tr></thead><tbody>
+{% for i in invoices %}<tr><td data-label="Rechnung"><a href="{{ ingress_prefix }}/invoices/{{ i.id }}">{{ i.number }}</a></td><td data-label="Kunde">{{ i.customer_name or 'Unbekannt' }}</td><td data-label="Faelligkeit">{{ i.due_date }}</td><td data-label="Offen" class="num"><strong>{{ i.remaining|money }} {{ i.currency }}</strong></td>
+<td data-label="Status"><span class="status {{ 'overdue' if i.days_overdue>0 else 'sent' }}">{{ i.days_overdue ~ ' Tage ueberfaellig' if i.days_overdue>0 else 'Offen' }}</span></td>
+<td data-label="Aktion" class="num"><a href="{{ ingress_prefix }}/invoices/{{ i.id }}" class="btn btn-sm">&Ouml;ffnen</a></td></tr>
+{% else %}<tr><td class="empty" colspan="6">Keine offenen Rechnungen gefunden.</td></tr>{% endfor %}</tbody></table></div></section>
+{% endblock %}

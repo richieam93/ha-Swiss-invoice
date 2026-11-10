@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+{% block title %}Benutzer &amp; Geschäftszugriff{% endblock %}
+{% block content %}
+<div class="page-head">
+  <div>
+    <span class="eyebrow">SYSTEM / GESCHÄFTSZUGRIFFE</span>
+    <h1>Benutzer &amp; Berechtigungen</h1>
+    <p>Bestimme für jede Person das Geschäft und was sie darin machen darf.</p>
+  </div>
+</div>
+
+<div class="hi-team-layout">
+  <section class="card hi-team-new">
+    <div class="section-title"><h2>Benutzer zuordnen</h2><span class="hi-team-step">NEU</span></div>
+    <p class="small-help">Neue Benutzer erhalten standardmässig <b>nur Zugriff auf das ausgewählte Geschäft</b>.</p>
+    <form method="post" action="{{ ingress_prefix }}/team">
+      <input type="hidden" name="_csrf" value="{{ csrf }}">
+      <div class="field mb-3">
+        <label for="team-business">1. Aktives Geschäft zuweisen *</label>
+        <select id="team-business" name="company_id" required>
+          {% for c in businesses %}
+          <option value="{{ c.id }}" {% if active_company and c.id==active_company.id %}selected{% endif %}>{{ c.name }}</option>
+          {% endfor %}
+        </select>
+        <small>Die Person sieht die Daten anderer Geschäfte nicht.</small>
+      </div>
+      <div class="field mb-3">
+        <label for="team-role">2. Was darf die Person? *</label>
+        <select id="team-role" name="role" required>
+          <option value="admin" selected>Geschäftsleitung – alles in diesem Geschäft</option>
+          <option value="editor">Mitarbeiter – Rechnungen und Daten bearbeiten</option>
+          <option value="viewer">Leser – Daten ansehen</option>
+        </select>
+        <div class="info-box mt-2" id="team-role-help">Geschäftsleitung darf Rechnungen, Kunden, Artikel, Zahlungen, Vorlagen, Firmeneinstellungen und Benutzer dieses Geschäfts verwalten. Kein Zugriff auf andere Geschäfte oder Gesamtbackups.</div>
+      </div>
+      <div class="field mb-2"><label for="team-email">3. E-Mail-Adresse *</label><input id="team-email" type="email" name="email" autocomplete="off" required placeholder="mitarbeiter@beispiel.ch"></div>
+      <div class="field mb-2"><label for="team-name">Name</label><input id="team-name" name="full_name" placeholder="Vorname Nachname"></div>
+      <div class="field mb-3"><label for="team-password">Startpasswort für neue Benutzer *</label><input id="team-password" type="password" name="password" minlength="10" autocomplete="new-password" placeholder="Mindestens 10 Zeichen"><small>Bei bereits existierenden Benutzern wird das bisherige Passwort beibehalten.</small></div>
+      {% if user.is_superadmin %}
+      <details class="hi-team-advanced mb-3">
+        <summary>Erweitert: Zugang zu mehreren Geschäften</summary>
+        <div class="field mt-2"><label class="check"><input type="checkbox" name="multi_company" value="1"> Mehrere Geschäftszugriffe ausdrücklich erlauben</label></div>
+        <p class="small-help">Nur für den Hauptadministrator: Dieser Benutzer kann später zusätzlichen Geschäften zugeordnet werden. Ohne diese Option bleibt der Zugang auf das ausgewählte Geschäft begrenzt.</p>
+      </details>
+      {% endif %}
+      <button class="btn btn-primary btn-block" type="submit">Benutzer erstellen / zuordnen</button>
+    </form>
+  </section>
+
+  <section class="card hi-team-existing">
+    <div class="section-title"><h2>Benutzer dieses Geschäfts</h2><span class="small-help">{{ members|length }} Person(en)</span></div>
+    <p class="small-help">Hier verwaltest du nur <b>{{ active_company.name }}</b>. Änderungen an Rollen wirken ausschliesslich in diesem Geschäft.</p>
+    {% if members %}
+    <div class="table-scroll">
+      <table class="table hi-stacked">
+        <thead><tr><th>Benutzer</th><th>Rolle</th><th>Rechte ändern</th><th>Aktion</th></tr></thead>
+        <tbody>{% for m in members %}
+        <tr>
+          <td data-label="Benutzer"><b>{{ m.full_name }}</b><div class="subtext">{{ m.email }}</div>
+            {% if m.id==user.id %}<div class="subtext">Du selbst</div>{% endif %}
+            {% if m.is_superadmin %}<div class="subtext">Hauptadministrator (alle eigenen Geschäftszugriffe)</div>
+            {% elif m.restricted_company_id==active_company.id %}<div class="subtext">🔒 Nur dieses Geschäft</div>
+            {% else %}<div class="subtext">Mehrfachzugriff möglich</div>{% endif %}
+            {% if user.is_superadmin and not m.is_superadmin and m.restricted_company_id==active_company.id and businesses|length>1 %}
+            <details class="hi-team-advanced mt-2"><summary>Anderes Geschäft zuweisen</summary>
+              <form action="{{ ingress_prefix }}/team/{{ m.id }}/move" method="post" class="mt-2">
+                <input type="hidden" name="_csrf" value="{{ csrf }}">
+                <div class="field mb-2"><label>Zielgeschäft</label><select name="company_id" required>
+                  {% for b in businesses %}{% if b.id!=active_company.id %}<option value="{{ b.id }}">{{ b.name }}</option>{% endif %}{% endfor %}
+                </select></div>
+                <button type="submit" class="btn btn-sm" data-confirm="Benutzer aus diesem Geschäft entfernen und dem Zielgeschäft mit derselben Rolle zuweisen?">Zuweisung ändern</button>
+              </form>
+            </details>
+            {% endif %}
+          </td>
+          <td data-label="Rolle">{% if m.role=='admin' %}<strong>Geschäftsleitung</strong>{% elif m.role=='editor' %}Mitarbeiter{% else %}Leser{% endif %}</td>
+          <td data-label="Rechte ändern" data-wide="true">
+          {% if m.is_superadmin and not user.is_superadmin %}<span class="small-help">Nur Hauptadministrator</span>{% else %}
+            <form class="hi-inline-form" action="{{ ingress_prefix }}/team/{{ m.id }}/role" method="post">
+              <input type="hidden" name="_csrf" value="{{ csrf }}">
+              <select name="role" aria-label="Rolle von {{ m.full_name }}">
+                {% for role,label in [('viewer','Lesen'),('editor','Bearbeiten'),('admin','Geschäftsleitung')] %}
+                  <option value="{{ role }}" {% if m.role==role %}selected{% endif %}>{{ label }}</option>
+                {% endfor %}
+              </select>
+              <button class="btn btn-sm" type="submit">Speichern</button>
+            </form>
+          {% endif %}
+          </td>
+          <td data-label="Aktion" data-wide="true">
+          {% if m.id!=user.id and (not m.is_superadmin or user.is_superadmin) %}
+            <form action="{{ ingress_prefix }}/team/{{ m.id }}/remove" method="post"><input type="hidden" name="_csrf" value="{{ csrf }}"><button type="submit" class="btn btn-sm btn-danger" data-confirm="Zugriff auf dieses Geschäft für diesen Benutzer entfernen?">Entfernen</button></form>
+          {% else %}<span class="small-help">Geschützt</span>{% endif %}
+          </td>
+        </tr>{% endfor %}</tbody>
+      </table>
+    </div>
+    {% else %}<p>Noch keine Benutzer zugeordnet.</p>{% endif %}
+    <div class="info-box mt-3">Der letzte Geschäftsadministrator und der eigene Administratorzugang sind vor versehentlicher Entfernung geschützt.</div>
+  </section>
+</div>
+<script src="{{ ingress_prefix }}/static/team.js" defer></script>
+{% endblock %}

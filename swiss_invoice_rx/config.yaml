@@ -1,0 +1,28 @@
+name: "Swiss-invoice-RX"
+version: "2.3.0"
+slug: "swiss_invoice_rx"
+description: "Schweizer Rechnungen, QR-Zahlteile, Kunden und Inventar – lokal in Home Assistant"
+url: "https://github.com/richieam93/ha-Swiss-invoice"
+arch:
+  - aarch64
+  - amd64
+stage: experimental
+startup: application
+boot: auto
+init: true
+ingress: true
+ingress_port: 8765
+ingress_stream: true
+panel_icon: "mdi:file-document-edit"
+panel_title: "Swiss-invoice-RX"
+panel_admin: false
+backup: cold
+map:
+  - type: share
+    read_only: true
+options:
+  log_level: info
+  import_backup: false
+schema:
+  log_level: list(info|warning|error|debug)
+  import_backup: bool

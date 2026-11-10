@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+{% block title %}Lagerbewegungen{% endblock %}
+{% block content %}
+<div class="page-head"><div><span class="eyebrow">LAGERVERWALTUNG</span>
+<h1>{{ item.name }}</h1><p>{{ item.sku }} &middot; Bewegungen und Bestand f&uuml;r dieses Gesch&auml;ft.</p></div>
+<a class="btn" href="{{ ingress_prefix }}/items">&larr; Artikel</a></div>
+<div class="cards" style="grid-template-columns:repeat(2,minmax(0,1fr))">
+<div class="card metric"><div class="metric-top">Aktueller Bestand</div><div class="metric-value">{{ item.stock }}</div><div class="metric-foot">{{ 'Lagerfuehrung aktiv' if item.track_stock else 'Lagerfuehrung deaktiviert' }}</div></div>
+<div class="card metric"><div class="metric-top">Verkaufspreis</div><div class="metric-value">{{ item.price|money }} <small>CHF</small></div><div class="metric-foot">Einkaufskosten: {{ item.cost|money }} CHF</div></div></div>
+{% if active_company.role!='viewer' and item.track_stock %}
+<section class="card form-section mb-3"><h2>Bestand anpassen</h2>
+<form action="{{ ingress_prefix }}/items/{{ item.id }}/stock" method="post"><input type="hidden" name="_csrf" value="{{ csrf }}">
+<div class="form-grid"><div class="field"><label>Aktion</label><select name="action"><option value="add">Menge dazubuchen / abziehen</option><option value="set">Neuen Gesamtbestand setzen</option></select></div>
+<div class="field"><label>Menge</label><input name="quantity" type="number" step="0.001" required placeholder="z.B. 10 oder -2"></div>
+<div class="field span-2"><label>Grund (Pflicht)</label><input name="note" minlength="3" required maxlength="200" placeholder="z.B. Wareneingang, Inventur oder Bruch"></div></div>
+<div class="form-actions"><button class="btn btn-primary">Lagerkorrektur buchen</button></div></form>
+<p class="small-help">Eine Korrektur wird mit Datum, Differenz und Begr&uuml;ndung protokolliert. Der Lagerbestand darf nicht negativ werden.</p></section>{% endif %}
+<section class="card"><div class="section-title"><h2>Letzte Lagerbewegungen</h2></div>
+<div class="table-scroll"><table class="table"><thead><tr><th>Datum</th><th>Grund</th><th>Beleg</th><th class="num">Differenz</th></tr></thead><tbody>
+{% for m in movements %}<tr><td>{{ m.at[:16] }}</td><td>{{ m.note }}</td><td>{% if m.invoice_id %}<a href="{{ ingress_prefix }}/invoices/{{ m.invoice_id }}">{{ m.invoice_number }}</a>{% else %}&mdash;{% endif %}</td>
+<td class="num"><span class="status {{ 'paid' if m.quantity|float > 0 else 'overdue' }}">{{ '+' if m.quantity|float > 0 else '' }}{{ m.quantity }}</span></td></tr>
+{% else %}<tr><td colspan="4" class="empty">Bisher keine Lagerbewegungen protokolliert.</td></tr>{% endfor %}
+</tbody></table></div></section>
+{% endblock %}

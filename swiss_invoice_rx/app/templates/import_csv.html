@@ -1,0 +1,20 @@
+{% extends 'base.html' %}
+{% block title %}CSV-Import{% endblock %}
+{% block content %}
+<div class="page-head"><div><span class="eyebrow">DATEN & STAMMDATEN</span>
+<h1>{{ 'Kunden' if kind=='customers' else 'Artikel' }} importieren.</h1>
+<p>Excel-CSV Dateien mit Semikolon oder Komma importieren. Die Daten bleiben ausschliesslich im aktuellen Gesch&auml;ft.</p></div>
+<a href="{{ ingress_prefix }}/{{ kind }}" class="btn">&larr; Zur&uuml;ck</a></div>
+<div class="settings-cols"><section class="card form-section"><h2>CSV-Datei ausw&auml;hlen</h2>
+<form action="{{ ingress_prefix }}/import/{{ kind }}" method="post" enctype="multipart/form-data">
+<input name="_csrf" type="hidden" value="{{ csrf }}">
+<div class="field"><label>CSV-Datei (UTF-8 oder Windows-1252, max. 2 MB)</label>
+<input type="file" name="file" accept=".csv,text/csv,text/plain" required></div>
+<p class="small-help mt-2">Maximal 2'000 Zeilen pro Vorgang. Doppelte Kunden (gleicher Name, PLZ und Ort) bzw. doppelte Artikelnummern werden &uuml;bersprungen. Bei fehlerhaften Zeilen wird nichts importiert.</p>
+<div class="form-actions"><button class="btn btn-primary">Datei importieren</button></div></form></section>
+<section class="card form-section"><h2>Vorlage f&uuml;r Excel</h2>
+<p>Lade die CSV-Vorlage herunter, trage die Daten in Excel ein und speichere wieder als CSV.</p>
+<a href="{{ ingress_prefix }}/import/sample/{{ kind }}.csv" class="btn btn-secondary">&darr; CSV-Vorlage herunterladen</a>
+<div class="group-title mt-3">ERKANNTE SPALTEN</div><div class="import-fields">{% for col in columns %}<code>{{ col }}</code>{% endfor %}</div>
+<p class="small-help mt-3">Die Spalte <code>name</code> ist erforderlich. Andere Spalten d&uuml;rfen leer sein. Artikel-SKUs werden beim Import aus der entsprechenden Spalte &uuml;bernommen; fehlende SKUs werden automatisch erzeugt.</p></section></div>
+{% endblock %}

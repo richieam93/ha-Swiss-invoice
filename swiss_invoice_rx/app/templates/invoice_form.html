@@ -1,0 +1,124 @@
+{% extends 'base.html' %}
+{% block title %}{{ invoice.kind|kind_label }} {{ 'bearbeiten' if editing else 'erstellen' }}{% endblock %}
+{% block content %}
+<div class="page-head editor-page-head">
+  <div><span class="eyebrow">BELEG-EDITOR / {{ invoice.kind|kind_label|upper }}</span><h1>{{ 'Entwurf bearbeiten' if editing else 'Neue '~(invoice.kind|kind_label)~' erstellen' }}</h1>
+    <p>Alle Angaben an einem Ort. Positionen einf&uuml;gen, verschieben, duplizieren und den Gesamtbetrag live kontrollieren.</p></div>
+  <div class="page-actions"><a class="btn" href="{{ ingress_prefix }}{{ '/invoices/'~invoice.id if editing else '/invoices?kind='~invoice.kind }}">&larr; Zur&uuml;ck</a><a class="btn btn-secondary" href="{{ ingress_prefix }}/templates">Vorlage ansehen</a></div>
+</div>
+<div class="editor-steps" aria-label="Ablauf"><span class="step-now">1 &nbsp; Entwurf bearbeiten</span><span>2 &nbsp; PDF pr&uuml;fen</span><span>3 &nbsp; Freigeben &amp; archivieren</span></div>
+{% if error_inline %}<div class="notice error" role="alert"><strong>Entwurf nicht gespeichert:</strong> {{ error_inline }}. Deine Eingaben sind erhalten geblieben.</div>{% endif %}
+<form id="invoice-form" action="{{ ingress_prefix }}/invoices/save" method="post" data-kind="{{ invoice.kind }}" data-company-id="{{ active_company.id }}" data-items="{{ items|tojson|forceescape }}" data-customers="{{ customers|tojson|forceescape }}" data-company="{{ active_company.name|e }}" data-editing="{{ 1 if editing else 0 }}" data-tax-registered="{{ 1 if active_company.tax_registered else 0 }}" data-default-tax="{{ active_company.default_tax }}" data-default-due="{{ active_company.default_due_days }}" data-has-iban="{{ 1 if active_company.iban else 0 }}" data-company-address="{{ 1 if active_company.zip and active_company.city and active_company.country else 0 }}">
+<input type="hidden" name="_csrf" value="{{ csrf }}"><input type="hidden" name="id" value="{{ invoice.id or '' }}"><input type="hidden" name="kind" value="{{ invoice.kind }}">
+<section class="card form-section">
+  <div class="section-title"><h2>01 / Kunde und Rechnungsdaten</h2><span class="badge-light">{{ 'Entwurf #'~invoice.id if editing else 'Neuer Entwurf' }}</span></div>
+  <div class="form-grid three">
+    <div class="field span-2"><label for="customer-select">Kunde *</label>
+      <input type="search" id="customer-filter" autocomplete="off" placeholder="Kunde suchen: Name, Ort oder Kundennummer" aria-label="Kundenliste filtern">
+      <select name="customer_id" id="customer-select"><option value="">Bitte Kunde w&auml;hlen</option>{% for c in customers %}<option value="{{ c.id }}" {% if invoice.customer_id|string == c.id|string %}selected{% endif %}>{{ c.name }} &middot; {{ c.zip }} {{ c.city }}</option>{% endfor %}</select>
+      <div id="customer-summary" class="customer-summary" aria-live="polite">Bitte einen Kunden ausw&auml;hlen.</div>
+      <button type="button" id="toggle-customer" class="btn btn-sm btn-secondary" aria-expanded="false" aria-controls="new-customer">+ Kunde direkt erfassen</button>
+    </div>
+    <div class="field"><label for="invoice-number">Belegnummer</label><input id="invoice-number" name="number" maxlength="40" value="{{ invoice.number or '' }}" placeholder="{{ number_hint }}" {% if editing %}required{% endif %} spellcheck="false" autocomplete="off">
+      <small id="number-availability" aria-live="polite"></small><small>{% if editing %}Bis zur Freigabe &auml;nderbar.{% else %}Leer lassen f&uuml;r automatische Vergabe.{% endif %} <strong>Vorschlag: {{ number_hint }}</strong></small>
+      {% if not editing %}<button type="button" class="btn btn-sm btn-secondary" id="use-suggested-number">Vorschlag &uuml;bernehmen</button>{% endif %}
+    </div>
+    <div class="field"><label for="invoice-date">Belegdatum *</label><input id="invoice-date" name="invoice_date" type="date" required value="{{ invoice.invoice_date }}"></div>
+    <div class="field"><label for="service-date">Leistungsdatum</label><input id="service-date" name="service_date" type="date" value="{{ invoice.service_date }}"></div>
+    <div class="field"><label for="due-date">F&auml;lligkeit *</label><input id="due-date" name="due_date" type="date" required value="{{ invoice.due_date }}"><div class="quick-dates"><button type="button" data-due-days="14">+14 T.</button><button type="button" data-due-days="30">+30 T.</button><button type="button" data-due-days="60">+60 T.</button></div><button type="button" class="btn btn-sm" id="apply-customer-due">Zahlungsziel des Kunden uebernehmen</button><small id="customer-due-info" aria-live="polite">Ohne Kundenwunsch gilt der Firmenstandard.</small></div>
+    <div class="field"><label for="invoice-currency">W&auml;hrung</label><select name="currency" id="invoice-currency"><option value="CHF" {% if invoice.currency=='CHF' %}selected{% endif %}>CHF - Schweizer Franken</option><option value="EUR" {% if invoice.currency=='EUR' %}selected{% endif %}>EUR - Euro</option></select></div>
+  </div>
+  <div id="new-customer" class="info-box mt-3" hidden><h3>Neuen Kunden gleichzeitig anlegen</h3>
+    <div class="form-grid three mt-2"><div class="field span-2"><label for="new-customer-name">Name oder Firma *</label><input id="new-customer-name" name="new_customer_name" value="{{ invoice.new_customer_name or '' }}"></div>
+    <div class="field"><label>E-Mail</label><input name="new_customer_email" type="email" value="{{ invoice.new_customer_email or '' }}"></div>
+    <div class="field span-2"><label>Strasse</label><input name="new_customer_street" value="{{ invoice.new_customer_street or '' }}"></div><div class="field"><label>Hausnummer</label><input name="new_customer_building" value="{{ invoice.new_customer_building or '' }}"></div>
+    <div class="field"><label>PLZ</label><input name="new_customer_zip" value="{{ invoice.new_customer_zip or '' }}"></div><div class="field"><label>Ort</label><input name="new_customer_city" value="{{ invoice.new_customer_city or '' }}"></div><div class="field"><label>Land (2 Buchstaben)</label><input name="new_customer_country" maxlength="2" value="{{ invoice.new_customer_country or 'CH' }}"></div><div class="field"><label>Zahlungsziel des neuen Kunden (Tage)</label><input name="new_customer_payment_days" type="number" min="0" max="365" value="{{ invoice.new_customer_payment_days or 0 }}"><small>0 = Firmenstandard</small></div></div>
+    <p class="small-help mt-2">Du musst dann oben keinen bestehenden Kunden w&auml;hlen. Die neue Kundenkarte wird beim Speichern angelegt.</p>
+  </div>
+  <div class="editor-hint mt-3" id="qr-ready" role="status"><span class="status-dot"></span><span>QR-Zahlteil wird bei der PDF-Erstellung gepr&uuml;ft.</span>{% if active_company.role=="admin" %}<a href="{{ ingress_prefix }}/qr-test" target="_blank" rel="noopener">QR-Einstellungen testen</a>{% else %}<span>QR-Daten durch Administrator pruefen lassen</span>{% endif %}</div>
+</section>
+<section class="card form-section hi-lines-section" id="invoice-lines-section">
+  <div class="section-title hi-lines-title">
+    <div><h2>02 / Rechnungspositionen</h2><p class="small-help">Beschreibung, Menge und Preis gen&uuml;gen. MWST und Rabatt kannst du bei Bedarf pro Position &auml;ndern.</p></div>
+    <button type="button" class="btn btn-sm btn-primary" id="add-row">+ Position hinzuf&uuml;gen</button>
+  </div>
+  <div class="hi-line-quickadd" id="product-quick-add">
+    <div class="hi-line-quick-search">
+      <label for="item-search">Artikel oder Dienstleistung suchen</label>
+      <input id="item-search" type="search" placeholder="Name oder Artikelnummer suchen ..." autocomplete="off" aria-label="Artikel suchen" aria-controls="item-search-results">
+      <div id="item-search-results" class="product-search-results" role="listbox" aria-label="Suchergebnisse" hidden></div>
+    </div>
+    <div class="hi-line-quickbuttons">
+      <button type="button" class="btn btn-sm" id="add-service">+ Stundenleistung</button>
+      <button type="button" class="btn btn-sm" id="add-text">+ Freie Position</button>
+    </div>
+  </div>
+  <details class="invoice-bulk-panel hi-lines-import" id="bulk-import-panel">
+    <summary><strong>Mehrere Positionen aus Excel einf&uuml;gen</strong><span class="small-help">Optional</span></summary>
+    <p class="small-help mt-2">Excel-Zeilen einf&uuml;gen: Beschreibung, Menge, Einheit, Preis, MWST, Rabatt. Erst nach &bdquo;Entwurf speichern&ldquo; werden sie dauerhaft gesichert.</p>
+    <label for="bulk-lines-input" class="group-title">POSITIONEN EINF&Uuml;GEN</label>
+    <textarea id="bulk-lines-input" rows="5" placeholder="Montage&#9;2&#9;Std.&#9;95,00&#9;8,1&#9;0&#10;Material&#9;3&#9;Stk.&#9;12,50&#9;8,1&#9;5" spellcheck="false" aria-label="Mehrere Rechnungspositionen einfuegen"></textarea>
+    <div class="bulk-actions mt-2"><button type="button" class="btn btn-sm btn-secondary" id="bulk-check">Zeilen pr&uuml;fen</button><button type="button" class="btn btn-sm btn-primary" id="bulk-add" disabled>Gepr&uuml;fte Positionen &uuml;bernehmen</button><button type="button" class="btn btn-sm" id="bulk-undo" hidden>Import r&uuml;ckg&auml;ngig</button></div>
+    <div id="bulk-result" class="small-help mt-2" role="status" aria-live="polite">Noch keine Positionen gepr&uuml;ft.</div>
+  </details>
+  <div class="hi-lines-list" id="invoice-rows" role="list" aria-label="Rechnungspositionen">
+  {% for l in lines %}
+    <section class="editor-line hi-line-card" role="listitem" aria-label="Rechnungsposition">
+      <header class="hi-line-header">
+        <div class="hi-line-heading"><strong class="line-index">Position {{ loop.index }}</strong><span class="line-kind">{{ 'Aus Artikelkatalog' if l.item_id else 'Freie Position' }}</span></div>
+        <div class="editor-row-buttons hi-line-tools" aria-label="Position bearbeiten">
+          <button type="button" class="row-up" title="Eine Position nach oben" aria-label="Position nach oben">&uarr;</button>
+          <button type="button" class="row-down" title="Eine Position nach unten" aria-label="Position nach unten">&darr;</button>
+          <button type="button" class="row-copy" title="Position duplizieren" aria-label="Position duplizieren">Kopieren</button>
+          <button type="button" class="remove-row" title="Position entfernen" aria-label="Position entfernen">Entfernen</button>
+        </div>
+      </header>
+      <div class="hi-line-fields">
+        <label class="hi-line-field hi-line-item"><span>Artikel</span>
+          <select name="item_id[]" class="item-picker" aria-label="Artikel f&uuml;r Position w&auml;hlen"><option value="">Freie Position</option>{% for a in items %}<option value="{{ a.id }}" {% if l.item_id|string == a.id|string %}selected{% endif %}>{{ a.sku or a.name }} - {{ a.name }}</option>{% endfor %}</select>
+          <small class="stock-hint" aria-live="polite"></small>
+        </label>
+        <label class="hi-line-field hi-line-description"><span>Beschreibung *</span><input name="description[]" value="{{ l.description or '' }}" placeholder="z. B. Beratung oder Material" maxlength="1000" aria-label="Beschreibung"></label>
+        <label class="hi-line-field hi-line-qty"><span>Menge</span><input name="qty[]" type="number" step="0.001" value="{{ l.qty if l.qty is not none else '1' }}" aria-label="Menge"></label>
+        <label class="hi-line-field hi-line-unit"><span>Einheit</span><input name="unit[]" value="{{ l.unit or 'Stk.' }}" maxlength="20" aria-label="Einheit"></label>
+        <label class="hi-line-field hi-line-price"><span>Preis pro Einheit</span><input name="price[]" type="number" min="0" step="0.01" value="{{ l.price if l.price is not none else '0.00' }}" aria-label="Einzelpreis"></label>
+        <div class="hi-line-amount"><span>Netto</span><strong class="line-total" aria-label="Positionsbetrag netto">0.00</strong></div>
+      </div>
+      <details class="hi-line-advanced">
+        <summary><span class="hi-line-extra-title">Rabatt &amp; MWST</span><span class="line-tax-summary">MWST {{ l.tax_rate or '0' }} % &middot; Rabatt {{ l.discount or '0' }} %</span></summary>
+        <div class="hi-line-advanced-fields">
+          <label class="hi-line-field"><span>MWST-Satz</span><select name="tax_rate[]" aria-label="MWST Satz">{% for r in (['0','2.6','3.8','8.1', active_company.default_tax, l.tax_rate or '0']|unique) %}<option value="{{ r }}" {% if (l.tax_rate or active_company.default_tax)|float == r|float %}selected{% endif %}>{{ r }} %</option>{% endfor %}</select></label>
+          <label class="hi-line-field"><span>Steuerart</span><select name="tax_mode[]" aria-label="Steuerart"><option value="taxable" {% if (l.tax_mode or 'taxable') == 'taxable' %}selected{% endif %}>MWST-pflichtig</option><option value="exempt" {% if l.tax_mode=='exempt' %}selected{% endif %}>Befreit</option><option value="excluded" {% if l.tax_mode=='excluded' %}selected{% endif %}>Ausgenommen</option></select></label>
+          <label class="hi-line-field"><span>Rabatt in %</span><input name="discount[]" type="number" min="0" max="100" step="0.1" value="{{ l.discount if l.discount is not none else '0' }}" aria-label="Positionsrabatt"></label>
+          <span class="hi-line-extra-help">Steuer und Rabatt gelten nur f&uuml;r diese Position.</span>
+        </div>
+      </details>
+    </section>
+  {% endfor %}
+  </div>
+  <div class="hi-line-footer">
+    <div class="hi-line-footer-actions"><button type="button" class="btn btn-sm btn-secondary" id="add-row-bottom">+ Weitere Position</button><button type="button" class="btn btn-sm" id="clean-empty-rows">Leere Positionen entfernen</button></div>
+    <span class="small-help" id="row-count" aria-live="polite">1 Position</span>
+    <button type="button" class="btn btn-sm" id="undo-row" hidden>Letzte entfernte Position wiederherstellen</button>
+  </div>
+</section>
+<section class="card form-section"><div class="section-title"><h2>03 / Betr&auml;ge und Notizen</h2></div>
+  <div class="field mb-3"><label for="invoice-subject">Betreff / Projekt (optional)</label><input id="invoice-subject" name="subject" maxlength="140" value="{{ invoice.subject or '' }}" placeholder="z. B. Projekt Alpenblick / Auftrag 2026-17"><small>Wird unterhalb der Belegdaten auf dem PDF angezeigt.</small></div>
+  <div class="form-grid"><div class="field"><label for="invoice-notes">Text auf der Rechnung</label><textarea id="invoice-notes" name="notes" rows="5" placeholder="Danke f&uuml;r den Auftrag. Zahlungsinformationen ...">{{ invoice.notes or '' }}</textarea><small>Dieser Text steht auf dem PDF. F&uuml;r interne Notizen bitte die Kundenkartei verwenden.</small></div>
+  <div><div class="field" style="max-width:200px;margin-left:auto"><label for="global-discount">Gesamtrabatt in %</label><input id="global-discount" type="number" min="0" max="100" step="0.1" name="discount" value="{{ invoice.discount or '0' }}"></div>
+  <div class="totals"><div class="kv"><span>Zwischensumme netto</span><b id="subtotal-live">0.00</b></div><div class="kv"><span>MWST gesamt</span><b id="tax-live">0.00</b></div><div id="tax-buckets-live" class="small-help tax-bucket-preview"></div><div class="kv total-main"><span>Gesamtbetrag</span><b><span id="total-live">0.00</span> <span class="editor-currency">{{ invoice.currency }}</span></b></div></div><p class="small-help text-right">Live-Sch&auml;tzung; verbindlich ist die Berechnung nach dem Speichern.</p></div></div>
+</section>
+<section class="card form-section"><div class="section-title"><h2>04 / Live-Vorschau</h2><span class="small-help">Eine Orientierung, kein fertig freigegebenes PDF.</span></div>
+  <div class="editor-preview-card"><div class="editor-preview-top"><div><small>RECHNUNGSENTWURF</small><h3 id="live-invoice-title">{{ invoice.kind|kind_label }}</h3><strong id="live-invoice-number">{{ invoice.number or number_hint }}</strong></div><div><b>{{ active_company.name }}</b><p id="live-invoice-date">{{ invoice.invoice_date }}</p></div></div>
+    <div class="editor-preview-customer">An: <strong id="live-customer">Bitte Kunde ausw&auml;hlen</strong><span id="live-due">F&auml;lligkeit {{ invoice.due_date }}</span></div>
+    <p class="small-help mt-2" id="live-subject"></p><table class="editor-preview-lines"><thead><tr><th>Leistung / Produkt</th><th>Menge</th><th class="num">Netto</th></tr></thead><tbody id="live-preview-rows"></tbody></table>
+    <div class="editor-preview-total">TOTAL <b><span id="live-preview-total">0.00</span> <span class="editor-currency">{{ invoice.currency }}</span></b></div><p id="live-notes"></p>
+  </div>
+</section>
+<div id="editor-feedback" class="small-help" role="status" aria-live="polite"></div>
+<div class="form-actions editor-bottom-actions"><span class="small-help">Tipp: <kbd>Ctrl</kbd> + <kbd>S</kbd> speichert, <kbd>Ctrl</kbd> + <kbd>Enter</kbd> zeigt die PDF-Vorschau.</span><a class="btn" href="{{ ingress_prefix }}{{ '/invoices/'~invoice.id if editing else '/invoices?kind='~invoice.kind }}">Abbrechen</a><button type="submit" class="btn btn-secondary" id="preview-invoice-pdf" formaction="{{ ingress_prefix }}/invoices/preview.pdf" formtarget="_blank">PDF-Vorschau ohne Speichern</button><button type="submit" class="btn btn-primary" id="save-invoice">Entwurf speichern &rarr;</button></div>
+</form>
+<div class="info-box mt-3"><b>Gut zu wissen:</b> Nach dem Speichern kannst du das echte PDF ansehen. Erst mit <b>Freigeben</b> wird der Beleg unver&auml;nderbar archiviert. Nummern kannst du im Entwurf &auml;ndern; bereits verwendete Nummern werden blockiert.</div>
+<script src="{{ ingress_prefix }}/static/bulk_lines.js" defer></script>
+<script src="{{ ingress_prefix }}/static/editor.js" defer></script>
+{% endblock %}
