@@ -1,5 +1,5 @@
 {% extends 'base.html' %}{% block title %}Firmendaten und Nummernkreise{% endblock %}{% block content %}
-<nav class="hi-settings-tabs" aria-label="Einstellungsbereiche"><a href="#hi-company">Firma</a><a href="#hi-bank">Bank &amp; QR</a><a href="#hi-layout">Darstellung</a><a href="{{ ingress_prefix }}/templates">Vorlagen</a><a href="{{ ingress_prefix }}/templates/designer">Designer</a><a href="{{ ingress_prefix }}/qr-test">QR testen</a></nav>
+<nav class="hi-settings-tabs" aria-label="Einstellungsbereiche"><a href="#hi-company">Firma</a><a href="#hi-branding">Logos</a><a href="#hi-bank">Bank &amp; QR</a><a href="#hi-layout">Darstellung</a><a href="{{ ingress_prefix }}/templates">Vorlagen</a><a href="{{ ingress_prefix }}/templates/designer">Designer</a><a href="{{ ingress_prefix }}/qr-test">QR testen</a></nav>
 <div class="page-head"><div><span class="eyebrow">EINSTELLUNGEN / {{ settings.name }}</span><h1>Firmendaten &amp; Nummernkreise</h1><p>Pro Gesch&auml;ft getrennte Einstellungen. Hier bestimmst du Rechnungsnummern, Bankdaten und QR-Verhalten.</p></div><div class="page-actions"><a class="btn" href="{{ ingress_prefix }}/templates">Rechnungsdesign</a><a class="btn btn-secondary" href="{{ ingress_prefix }}/qr-test">QR-Code testen &rarr;</a></div></div>
 <form action="{{ ingress_prefix }}/settings" method="post" enctype="multipart/form-data" id="settings-form" data-year="{{ year }}"><input name="_csrf" type="hidden" value="{{ csrf }}">
 <div class="settings-cols">
@@ -24,5 +24,16 @@
 </section>
 <section class="card form-section"><h2 id="hi-layout">06 / Darstellung und Zahlungsbedingungen</h2><div class="form-grid"><div class="field"><label>F&auml;lligkeit in Tagen</label><input type="number" name="default_due_days" min="0" max="365" value="{{ settings.default_due_days }}"></div><div class="field"><label>Akzentfarbe</label><input type="color" name="color" value="{{ settings.color }}"></div><div class="field span-2"><label>Zahlungshinweis</label><input name="payment_terms" value="{{ settings.payment_terms }}"><small><code>{days}</code> = standardm&auml;ssige Zahlungsfrist</small></div><div class="field span-2"><label>PDF-Fusszeile</label><textarea name="footer_text">{{ settings.footer_text }}</textarea></div></div></section>
 </div><div class="form-actions editor-bottom-actions"><a class="btn" href="{{ ingress_prefix }}/dashboard">Zur&uuml;ck</a><button class="btn btn-primary">Alle Einstellungen speichern &rarr;</button></div></form>
+<section class="card form-section mt-3" id="hi-branding"><div class="section-title"><div><h2>07 / Logos für die Software</h2><p class="small-help">Diese Logos sind von deinem Rechnungs-PDF-Logo unabhängig. Alle Benutzer sehen nach der Anmeldung das Logo des zugewiesenen Geschäfts.</p></div></div>
+<form action="{{ ingress_prefix }}/settings/branding" method="post" enctype="multipart/form-data"><input type="hidden" name="_csrf" value="{{ csrf }}">
+<div class="form-grid">
+<div class="field"><label for="hi-app-logo">Logo dieses Geschäfts</label><input id="hi-app-logo" type="file" accept="image/png,image/jpeg,image/webp" name="app_logo"><small>Für Seitenleiste und Dashboard, pro Geschäft getrennt. PNG, JPG oder WebP; maximal 5 MB. Ohne eigenes Logo wird das Rechnungslogo verwendet.</small>
+{% if company_app_logo %}<div class="hi-logo-preview"><img src="{{ ingress_prefix }}/media/app-logo" alt="Aktuelles Logo des Geschäfts"><span>Aktuelles Logo · {{ settings.name }}</span></div>{% endif %}
+<label class="check"><input type="checkbox" name="remove_app_logo" value="1"> Eigenes Oberflächenlogo entfernen (Rechnungslogo bleibt erhalten)</label></div>
+{% if user.is_superadmin %}<div class="field"><label for="hi-site-logo">Allgemeines Anmeldelogo</label><input id="hi-site-logo" type="file" accept="image/png,image/jpeg,image/webp" name="login_logo"><small>Vor der Anmeldung sichtbar. Gilt für alle Benutzer, da das Geschäft erst nach dem Anmelden sicher feststeht.</small>
+{% if site_login_logo %}<div class="hi-logo-preview"><img src="{{ ingress_prefix }}/media/login-logo" alt="Allgemeines Logo der Anmeldeseite"><span>Aktuelles Anmeldelogo</span></div>{% endif %}
+<label class="check"><input type="checkbox" name="remove_login_logo" value="1"> Anmeldelogo entfernen</label></div>{% endif %}
+</div><div class="form-actions"><button type="submit" class="btn btn-primary">Logos speichern &rarr;</button></div>
+</form></section>
 <script src="{{ ingress_prefix }}/static/settings.js" defer></script>
 {% endblock %}

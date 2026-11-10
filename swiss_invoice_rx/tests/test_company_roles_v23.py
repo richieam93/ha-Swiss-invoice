@@ -206,7 +206,7 @@ class CompanyRoleTests(unittest.TestCase):
                 con.execute('PRAGMA user_version=10')
             initialize(path)
             with closing(db_connect(path)) as con:
-                self.assertEqual(con.execute('PRAGMA user_version').fetchone()[0], 11)
+                self.assertEqual(con.execute('PRAGMA user_version').fetchone()[0], 12)
                 row = con.execute('SELECT full_name,restricted_company_id FROM users').fetchone()
                 self.assertEqual(row['full_name'], 'Alt')
                 self.assertIsNone(row['restricted_company_id'])

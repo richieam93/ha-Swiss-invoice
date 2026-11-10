@@ -13,7 +13,8 @@ Swiss-invoice-RX Home-Assistant
 - Vorlagen-Studio und frei gestaltbarer A4-Drag-and-Drop-Designer
 - Mehrere Geschäfte mit getrennter Datenbankzuordnung
 - Benutzerverwaltung inklusive **Geschäftsleitung mit Vollrechten nur für das zugewiesene Geschäft**
-- Lokale SQLite-Datenbank, Home-Assistant-Backups,
+- Lokale SQLite-Datenbank und Home-Assistant-Backups
+- **Individuelle Geschäftslogos:** Jeder Benutzer sieht nach der Anmeldung das Logo seines zugewiesenen Geschäfts. Zusätzlich gibt es ein allgemeines Anmeldelogo.
 
 ## Installation in Home Assistant
 
@@ -54,3 +55,7 @@ ha-Swiss-invoice/
 
 Der Zugriff erfolgt ausschliesslich über **Home Assistant Ingress**, ohne einen öffentlichen TCP-Port. Für die Mandantenrechte gibt es **zusätzlich zur Home-Assistant-Anmeldung eine eigene Benutzeranmeldung**.
 
+
+## Logos und Branding
+
+**Einstellungen → Firmendaten → Logos**: Oberflächenlogo pro Geschäft hochladen (Geschäftsleitung). Nur der Hauptadministrator darf das allgemeine Anmeldelogo ändern. Vor der Anmeldung wird aus Datenschutzgründen noch kein benutzerspezifisches Logo angezeigt; nach dem Login erscheint automatisch das richtige Geschäft. Details: [Logo-Anleitung](swiss_invoice_rx/LOGOS_ANLEITUNG.md).

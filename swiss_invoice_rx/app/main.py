@@ -41,6 +41,8 @@ from .template_library import (TEMPLATE_FIELDS, snapshot, as_json, create_initia
 from .designer import parse_layout, dumps_layout, default_layout
 from .search import search_all
 from .system_check import check_installation
+from .branding import (uploaded_logo, save_company_logo, save_site_logo,
+                       site_logo_path, company_logo_path)
 
 HERE = Path(__file__).resolve().parent
 DEFAULT_DIR = HERE.parent / 'storage'
@@ -164,6 +166,8 @@ def create_app(data_dir=None):
         return TEMPLATES.TemplateResponse(request, name, {
             'user':user, 'company_menu':memberships, 'active_company':selected_company,
             'csrf':request.session['csrf'], 'flash':request.session.pop('flash', None),
+            'company_app_logo':bool(company_logo_path(root, selected_company)),
+            'site_login_logo':bool(site_logo_path(root)),
             'ingress_prefix':getattr(request.state, 'ingress_prefix', ''),
             'today':date.today().isoformat(), 'year':date.today().year, **context
         })
@@ -1188,6 +1192,23 @@ def create_app(data_dir=None):
             raise HTTPException(404)
         return FileResponse(path,media_type='image/jpeg')
 
+    @app.get('/media/app-logo')
+    async def app_brand_logo(request:Request):
+        user, company = current(request)
+        path = company_logo_path(root, company)
+        if not path:
+            raise HTTPException(404, 'Kein Logo fuer dieses Geschaeft')
+        return FileResponse(path, media_type='image/png' if path.suffix.lower()=='.png' else 'image/jpeg')
+
+    @app.get('/media/login-logo')
+    async def public_login_logo(request:Request):
+        # Das einzige vor dem Login sichtbare Logo ist installationsweit und
+        # nur vom Hauptadministrator bearbeitbar. Keine Konten/Filialen verraten.
+        path = site_logo_path(root)
+        if not path:
+            raise HTTPException(404)
+        return FileResponse(path, media_type='image/png')
+
     @app.get('/media/logo')
     async def logo_media(request:Request):
         user,co=current(request)
@@ -2169,6 +2190,43 @@ def create_app(data_dir=None):
         except (ValueError,sqlite3.IntegrityError) as exc:
             notify(request,str(exc),'error')
         return redirect('/settings')
+
+    @app.post('/settings/branding')
+    async def settings_branding(request:Request):
+        user, co = current(request, 'admin')
+        data = await form(request)
+        company_upload = data.get('app_logo')
+        login_upload = data.get('login_logo')
+        remove_company = str(data.get('remove_app_logo', '')) == '1'
+        remove_login = str(data.get('remove_login_logo', '')) == '1'
+        if not user['is_superadmin'] and (remove_login or getattr(login_upload, 'filename', '')):
+            raise HTTPException(403, 'Nur der Hauptadministrator darf das Anmeldelogo aendern.')
+        try:
+            # Beide Dateien vor einer Datenbank- oder Dateioperation pruefen.
+            company_image = uploaded_logo(company_upload)
+            login_image = uploaded_logo(login_upload) if user['is_superadmin'] else None
+            with transaction(db_path, True) as con:
+                changed = False
+                if company_image is not None or remove_company:
+                    new_path = save_company_logo(root, co['id'], company_image) if company_image is not None else ''
+                    con.execute('UPDATE companies SET app_logo_path=? WHERE id=?', (new_path, co['id']))
+                    changed = True
+                if user['is_superadmin'] and (login_image is not None or remove_login):
+                    if login_image is not None:
+                        save_site_logo(root, login_image)
+                    else:
+                        path = site_logo_path(root)
+                        if path:
+                            path.unlink()
+                    changed = True
+                if changed:
+                    audit(con, co['id'], user['id'], 'Logos aktualisiert',
+                          'Oberflaechenlogo und/oder Anmeldelogo angepasst')
+            notify(request, 'Logos gespeichert. Das Geschaeftslogo erscheint bei allen zugewiesenen Benutzern.'
+                   if changed else 'Kein neues Logo ausgewaehlt.')
+        except ValueError as exc:
+            notify(request, str(exc), 'error')
+        return redirect('/settings#hi-branding')
 
     def qr_test_fields(co):
         return {

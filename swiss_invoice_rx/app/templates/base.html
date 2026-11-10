@@ -8,7 +8,7 @@
 <div class="shell">
 {% set nav_path = request.url.path %}
 <aside class="sidebar" id="main-sidebar" aria-label="Hauptnavigation" data-user-id="{{ user.id }}" data-document-kind="{{ invoice.kind if invoice is defined and invoice else '' }}">
- <a class="brand" href="{{ ingress_prefix }}/dashboard"><span class="brand-icon">S<span>.</span></span><span><b>Swiss-invoice-RX</b><small>RECHNUNGEN / CH</small></span></a>
+ <a class="brand" href="{{ ingress_prefix }}/dashboard"><span class="brand-icon{% if company_app_logo %} brand-icon-image{% endif %}">{% if company_app_logo %}<img src="{{ ingress_prefix }}/media/app-logo" alt="Logo {{ active_company.name }}">{% else %}S<span>.</span>{% endif %}</span><span><b>Swiss-invoice-RX</b><small>{{ active_company.name if active_company else 'RECHNUNGEN / CH' }}</small></span></a>
  <div class="work-switch"><span class="switch-label">AKTIVES GESCHÄFT</span>
  <form action="{{ ingress_prefix }}/company/switch" method="post"><input type="hidden" name="_csrf" value="{{ csrf }}">
  <select name="company_id" id="company-switch" aria-label="Geschäft auswählen">{% for c in company_menu %}<option value="{{ c.id }}" {% if active_company and c.id==active_company.id %}selected{% endif %}>{{ c.name }}</option>{% endfor %}</select></form>{% if user.restricted_company_id %}<small class="hi-business-scope">🔒 Nur dieses Geschäft</small>{% endif %}</div>
@@ -83,10 +83,10 @@
 <main class="content">
 {% if flash %}<div class="notice {{ flash[0] }}">{{ flash[1] }}</div>{% endif %}
 {% block content %}{% endblock %}
-</main><footer class="app-footer">Swiss-invoice-RX 2.3 · Lokale Rechnungsverwaltung · Schweiz</footer></div>
+</main><footer class="app-footer">Swiss-invoice-RX 2.4 · Lokale Rechnungsverwaltung · Schweiz</footer></div>
 </div>
 {% else %}
-<div class="auth-layout"><div class="auth-visual"><div class="auth-wordmark">Swiss-invoice<span> RX</span></div><div class="auth-copy"><span class="eyebrow">YOUR BUSINESS. YOUR DATA.</span><h1>Rechnungen.<br>Einfach.<br><em>Schweizerisch.</em></h1><p>Professionelle Rechnungen, sichere lokale Daten und Schweizer QR-Zahlteile in einer klaren Oberfläche.</p></div><div class="auth-deco"><span>CHF</span><span>↗</span><span>QR</span></div></div><div class="auth-panel">{% if flash %}<div class="notice {{ flash[0] }}">{{ flash[1] }}</div>{% endif %}{% block authcontent %}{% endblock %}</div></div>
+<div class="auth-layout"><div class="auth-visual auth-visual-image">{% if site_login_logo %}<img src="{{ ingress_prefix }}/media/login-logo" alt="Swiss-invoice-RX Anmeldelogo" class="auth-site-logo">{% else %}<div class="auth-wordmark">Swiss-invoice<span> RX</span></div>{% endif %}<div class="auth-visual-badge">Schweizer Rechnungen · lokal &amp; sicher</div></div><div class="auth-panel">{% if site_login_logo %}<img src="{{ ingress_prefix }}/media/login-logo" alt="Swiss-invoice-RX Anmeldelogo" class="auth-mobile-logo">{% endif %}{% if flash %}<div class="notice {{ flash[0] }}">{{ flash[1] }}</div>{% endif %}{% block authcontent %}{% endblock %}</div></div>
 {% endif %}
 {% if user %}
 <dialog id="global-search-dialog" class="quick-search-dialog" aria-label="Globale Suche">

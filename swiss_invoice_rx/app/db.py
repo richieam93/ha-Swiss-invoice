@@ -20,6 +20,7 @@ CREATE TABLE IF NOT EXISTS companies (
  uid TEXT NOT NULL DEFAULT '', iban TEXT NOT NULL DEFAULT '', currency TEXT NOT NULL DEFAULT 'CHF',
  tax_registered INTEGER NOT NULL DEFAULT 0, default_tax TEXT NOT NULL DEFAULT '0',
  color TEXT NOT NULL DEFAULT '#2563eb', logo_path TEXT NOT NULL DEFAULT '',
+ app_logo_path TEXT NOT NULL DEFAULT '',
  footer_text TEXT NOT NULL DEFAULT 'Vielen Dank fuer Ihren Auftrag.',
  payment_terms TEXT NOT NULL DEFAULT 'Zahlbar innert {days} Tagen.',
  default_due_days INTEGER NOT NULL DEFAULT 30, number_prefix TEXT NOT NULL DEFAULT 'RE',
@@ -197,6 +198,7 @@ def initialize(path):
                 'template_show_page_numbers': 'INTEGER NOT NULL DEFAULT 1',
                 'designer_enabled': 'INTEGER NOT NULL DEFAULT 0',
                 'designer_layout': "TEXT NOT NULL DEFAULT ''",
+                'app_logo_path': "TEXT NOT NULL DEFAULT ''",
             },
             'payments': {
                 'reversed_at': "TEXT NOT NULL DEFAULT ''",
@@ -214,7 +216,7 @@ def initialize(path):
             for field, declaration in columns.items():
                 if field not in existing:
                     con.execute(f'ALTER TABLE {table} ADD COLUMN {field} {declaration}')
-        con.execute('PRAGMA user_version=11')
+        con.execute('PRAGMA user_version=12')
         con.execute('PRAGMA journal_mode=WAL')
         con.commit()
     finally:

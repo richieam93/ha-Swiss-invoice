@@ -32,3 +32,9 @@ Home Assistant schützt den Zugriff auf die Seitenleiste. Swiss-invoice-RX hat z
 Der Ordner `/data` ist das **persistente Add-on-Datenvolumen**. Er wird bei regulären Updates beibehalten. Für Sicherungen im Home Assistant Backup-Manager ist `backup: cold` eingestellt: Das Add-on wird für eine konsistente Sicherung gestoppt.
 
 
+
+## Logos und unterschiedliche Geschäftsansichten (Version 2.4.0)
+
+Unter **Einstellungen → Firmendaten → Logos** kann eine Geschäftsleitung ein eigenes **Oberflächenlogo** hochladen. Es erscheint bei allen dem betreffenden Geschäft zugewiesenen Benutzern auf dem Dashboard und in der Seitenleiste. Beim Firmenwechsel aktualisiert sich das Logo automatisch. Ohne separates Oberflächenlogo wird das vorhandene Rechnungslogo verwendet. PDFs und QR-Zahlteile werden durch das neue Oberflächenlogo nicht verändert.
+
+Nur der Hauptadministrator kann zusätzlich das **allgemeine Anmeldelogo** einstellen. Vor Eingabe der Zugangsdaten lässt die App bewusst keine Firmenlogos erkennen: Das würde ohne Authentifizierung Benutzer- und Geschäftszuordnungen offenlegen. Erst nach erfolgreicher Anmeldung wird das richtige Firmenlogo geladen. Logos werden in `/data/uploads/` gespeichert und in Home-Assistant-Backups mitgesichert.
