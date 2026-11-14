@@ -83,7 +83,7 @@
 <main class="content">
 {% if flash %}<div class="notice {{ flash[0] }}">{{ flash[1] }}</div>{% endif %}
 {% block content %}{% endblock %}
-</main><footer class="app-footer">Swiss-invoice-RX 2.8 · Lokale Rechnungsverwaltung · Schweiz</footer></div>
+</main><footer class="app-footer">Swiss-invoice-RX 2.9 · Lokale Rechnungsverwaltung · Schweiz</footer></div>
 </div>
 {% else %}
 <div class="auth-layout"><div class="auth-visual auth-visual-image">{% if site_login_logo %}<img src="{{ ingress_prefix }}/media/login-logo" alt="Swiss-invoice-RX Anmeldelogo" class="auth-site-logo">{% else %}<div class="auth-wordmark">Swiss-invoice<span> RX</span></div>{% endif %}<div class="auth-visual-badge">Schweizer Rechnungen · lokal &amp; sicher</div></div><div class="auth-panel">{% if site_login_logo %}<img src="{{ ingress_prefix }}/media/login-logo" alt="Swiss-invoice-RX Anmeldelogo" class="auth-mobile-logo">{% endif %}{% if flash %}<div class="notice {{ flash[0] }}">{{ flash[1] }}</div>{% endif %}{% block authcontent %}{% endblock %}</div></div>

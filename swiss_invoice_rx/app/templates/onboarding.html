@@ -4,7 +4,7 @@
 <div class="onboarding-box auth-box">
   <div class="onboarding-top"><span class="eyebrow">WILLKOMMEN BEI SWISS-INVOICE-RX</span><span class="onboard-step-counter" id="onboard-progress">Schritt 1 von 4</span></div>
   <h1>Dein eigenes Geschäft einrichten</h1>
-  <p>Du hast einen separaten Zugang erhalten. Niemand aus einem anderen Geschäft kann deine Rechnungen oder Kundendaten sehen.</p>
+  <p>Du erhältst eine eigene, leere Geschäftsumgebung und richtest sie wie bei einer Erstinstallation ein. Danach hast du volle Rechte für dein Geschäft: Rechnungen, Kunden, Artikel, Vorlagen, QR-Code und Mitarbeiter. Bestehende Geschäfte bleiben für dich unsichtbar.</p>
   <div class="onboard-progress-track" aria-hidden="true"><span id="onboard-progress-bar"></span></div>
   <form id="onboard-form" action="{{ ingress_prefix }}/onboarding" method="post" enctype="multipart/form-data">
     <input name="_csrf" type="hidden" value="{{ csrf }}">
@@ -56,7 +56,7 @@
         <p class="small-help" id="onboard-tax-note">Geschäftsart und MWST-Status sind unabhängig. Grundsätzlich gilt für Unternehmen eine Umsatzgrenze von CHF 100’000; freiwillige Registrierung ist möglich. Setze das Häkchen nur mit tatsächlicher Registrierung.</p>
         <div class="form-grid" id="onboard-tax-details" hidden><div class="field"><label>Standard-MWST (%)</label><select name="default_tax"><option value="8.1">8,1 % – Normalsatz</option><option value="2.6">2,6 % – reduziert</option><option value="3.8">3,8 % – Beherbergung</option></select></div><div class="field"><label>UID / MWST-Nummer</label><input name="uid" placeholder="CHE-123.456.789 MWST" maxlength="60"></div></div>
       </div>
-      <div class="info-box mt-3">Nach der Einrichtung kannst du alles unter <b>Firmendaten, Logos und QR-Testzentrum</b> ändern. Deine Rechnungen gehören nur zu deinem Geschäft.</div>
+      <div class="info-box mt-3">Danach bist du <b>Geschäftsadministrator</b> deines eigenen Geschäfts. Logos, Rechnungsnummern, Vorlagen, MWST und Bank-/QR-Daten kannst du später jederzeit ändern. Gemeinsame systemweite Funktionen bleiben beim Installationsadministrator.</div>
     </section>
     <div class="onboard-actions"><button type="button" class="btn" id="onboard-back">← Zurück</button><button type="button" class="btn btn-primary" id="onboard-next">Weiter →</button><button type="submit" class="btn btn-primary" id="onboard-finish">Eigenes Geschäft erstellen ✓</button></div>
   </form>

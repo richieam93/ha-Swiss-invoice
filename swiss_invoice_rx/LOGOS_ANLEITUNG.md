@@ -26,6 +26,4 @@ Dieses Logo gilt **vor dem Anmelden für alle Benutzer**. Die Anwendung weiss er
 - Die Bilder liegen dauerhaft in `/data/uploads/` und sind Bestandteil von Home-Assistant- und lokalen Gesamtbackups.
 - Diese Version migriert bestehende Datenbanken automatisch; Rechnungen und QR-Zahlteile werden nicht geändert.
 
-## GitHub-Update
 
-Den Inhalt des ZIP-Ordners `ha-Swiss-invoice/` ins gleichnamige GitHub-Repository übernehmen. Home Assistant zeigt das Update auf **2.4.0** nach Aktualisieren des Repositories an. Vor Installation ein Add-on-Backup erstellen. Bestehende Logos und Geschäftsdaten bleiben im persistenten `/data` erhalten.

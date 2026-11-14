@@ -1,3 +1,14 @@
+## 2.9.0 – Eigenständige Geschäftseinrichtung beim ersten Login
+
+- Fehler behoben: Die Checkbox „Eigenes Geschäft erstellen“ war in der Benutzerverwaltung ausserhalb des Formulars und wurde beim Speichern nicht übertragen.
+- Neuer Benutzer erhält ohne bestehende Firmenmitgliedschaft eine eigene, leere Erst-Einrichtung (Geschäftsart, Rechnungsadresse, Logo, Passwort, Zahlungen und MWST).
+- Nach dem Assistenten automatisch **Administrator nur des neuen Geschäfts**; Zugriffe auf bestehende Geschäfte bleiben verboten.
+- Bereits falsch zugeordnete Mitarbeiter lassen sich sicher auf „Eigenes Geschäft einrichten lassen“ umstellen, falls sie ausschliesslich dem aktuellen Geschäft angehören.
+- Zugriff wird dabei sofort entzogen, auch bei bereits aktiven Sitzungen. Vorhandene Kunden, Rechnungen und PDFs des bisherigen Geschäfts bleiben unberührt.
+- Benutzerumstellung ist gegen unzulässige Änderungen am Hauptadministrator, am letzten Geschäftsadministrator und an Mehrfachmitgliedschaften geschützt.
+- Zusätzliche Ende-zu-Ende-Tests für das tatsächlich gerenderte HTML-Formular, Ersteinrichtung, Rollen und Mandantentrennung.
+- Keine neue Datenbankmigration notwendig; bestehende Add-on-Daten bleiben erhalten.
+
 ## 2.8.0 - Lokaler Netzwerkzugang mit konfigurierbarem Port
 
 - Home Assistant kann Port `8765/tcp` gezielt an das Heimnetz freigeben; standardmäßig ist die Freigabe aus (Ingress bleibt aktiv), Host-Port unter `Netzwerk` einschaltbar, änderbar oder deaktivierbar.

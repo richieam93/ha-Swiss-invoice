@@ -1,5 +1,19 @@
 # Swiss-invoice-RX
 
+## Neu in 2.9.0: Eigenes Geschäft für neue Benutzer – vollständig getrennt
+
+Unter **Einstellungen & System → Benutzer** kannst du beim Erstellen eines Kontos
+**„Eigenes Geschäft erstellen – volle Rechte nur im neuen Geschäft“** aktivieren.
+Das Häkchen wird nun zuverlässig mit dem Formular übertragen. Das Konto bekommt
+**keine Mitgliedschaft** in deinem vorhandenen Geschäft. Beim ersten Login erscheint
+ein vierstufiger Assistent mit Geschäftsart, Rechnungsadresse, Logo, eigenem Passwort,
+MWST-Status sowie IBAN/QR-Daten. Danach wird die Person **Administrator nur ihres
+neuen Geschäfts** und kann dort Rechnungen, Kunden, Artikel, Vorlagen, Einstellungen,
+Zahlungen und Mitarbeiter selbst verwalten.
+
+
+[Update-Anleitung](../UPDATE_2_9.md)
+
 ## Neu in 2.8.0: Direkt im Heimnetz erreichbar
 
 Die App behaelt den Home-Assistant-Ingress-Zugang. Neu laesst sich die Weboberflaeche

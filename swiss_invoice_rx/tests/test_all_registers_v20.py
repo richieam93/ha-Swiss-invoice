@@ -233,7 +233,7 @@ class AllRegisters20Tests(unittest.TestCase):
                     '/qr-test','/team','/activity','/backup','/systemcheck','/help'):
             res=self.client.get(url)
             self.assertEqual(res.status_code,200,f'{url}: {res.text[:100]}')
-            self.assertIn('Swiss-invoice-RX 2.8',res.text)
+            self.assertIn('Swiss-invoice-RX 2.9',res.text)
         self.assertIn('einfach nutzen',self.client.get('/help').text)
 
 if __name__=='__main__':

@@ -11,16 +11,16 @@
 
 <div class="hi-team-layout">
   <section class="card hi-team-new">
-    <div class="section-title"><h2>Benutzer zuordnen</h2><span class="hi-team-step">NEU</span></div>
+    <div class="section-title"><h2>Benutzer erstellen oder zuordnen</h2><span class="hi-team-step">NEU</span></div>
     <p class="small-help">Wähle, ob die Person hier mitarbeitet oder beim ersten Login <b>ein vollständig eigenes Geschäft</b> einrichtet.</p>
-    <div class="own-company-option">
-      <label class="own-company-check" for="team-own-company">
-        <input type="checkbox" id="team-own-company" name="create_own_company" value="1">
-        <span><strong>Eigenes Geschäft erstellen</strong><small>Dieser Benutzer sieht keine Daten deines Geschäfts. Er wird nach dem Login durch die Einrichtung seiner eigenen Firma geführt.</small></span>
-      </label>
-    </div>
-    <form method="post" action="{{ ingress_prefix }}/team">
+    <form method="post" action="{{ ingress_prefix }}/team" id="team-user-form">
       <input type="hidden" name="_csrf" value="{{ csrf }}">
+      <div class="own-company-option">
+        <label class="own-company-check" for="team-own-company">
+          <input type="checkbox" id="team-own-company" name="create_own_company" value="1">
+          <span><strong>Eigenes Geschäft erstellen – volle Rechte nur im neuen Geschäft</strong><small>Kein Zugriff auf deine Kunden oder Rechnungen. Beim ersten Login erscheint die geführte Einrichtung mit Logo, Rechnungsadresse, Bank-/QR-Daten und MWST. Danach ist die Person Administrator ihres eigenen Geschäfts.</small></span>
+        </label>
+      </div>
       <div id="team-assign-fields">
       <div class="field mb-3">
         <label for="team-business">1. Aktives Geschäft zuweisen *</label>
@@ -99,12 +99,18 @@
           {% if m.id!=user.id and (not m.is_superadmin or user.is_superadmin) %}
             <form action="{{ ingress_prefix }}/team/{{ m.id }}/remove" method="post"><input type="hidden" name="_csrf" value="{{ csrf }}"><button type="submit" class="btn btn-sm btn-danger" data-confirm="Zugriff auf dieses Geschäft für diesen Benutzer entfernen?">Entfernen</button></form>
           {% else %}<span class="small-help">Geschützt</span>{% endif %}
+          {% if m.id != user.id and not m.is_superadmin and m.memberships_count == 1 and (m.role != 'admin' or admin_count > 1) %}
+            <form action="{{ ingress_prefix }}/team/{{ m.id }}/own-business" method="post" class="mt-2">
+              <input type="hidden" name="_csrf" value="{{ csrf }}">
+              <button type="submit" class="btn btn-sm" data-confirm="Diesem Benutzer sofort den bisherigen Geschäftszugriff entziehen und stattdessen die Einrichtung eines eigenen Geschäfts erlauben? Bereits erfasste Rechnungen bleiben in deinem Geschäft.">Eigenes Geschäft einrichten lassen</button>
+            </form>
+          {% endif %}
           </td>
         </tr>{% endfor %}</tbody>
       </table>
     </div>
     {% else %}<p>Noch keine Benutzer zugeordnet.</p>{% endif %}
-    <div class="info-box mt-3">Der letzte Geschäftsadministrator und der eigene Administratorzugang sind vor versehentlicher Entfernung geschützt.</div>
+    <div class="info-box mt-3">Der letzte Geschäftsadministrator und dein eigener Zugang bleiben geschützt. Bereits zugeordnete Mitarbeiter können über „Eigenes Geschäft einrichten lassen“ auf einen unabhängigen Einrichtungsassistenten umgestellt werden. Die bisherigen Rechnungen bleiben in diesem Geschäft.</div>
   </section>
 </div>
 {% if pending %}

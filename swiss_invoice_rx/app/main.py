@@ -714,12 +714,14 @@ def create_app(data_dir=None):
         user,co=current(request,'admin')
         with transaction(db_path) as con:
             members=[dict(x) for x in allrows(con,'''SELECT u.id,u.email,u.full_name,u.active,
-                u.restricted_company_id,u.is_superadmin,m.role
+                u.restricted_company_id,u.is_superadmin,m.role,
+                (SELECT COUNT(*) FROM memberships mm WHERE mm.user_id=u.id) AS memberships_count
                 FROM memberships m JOIN users u ON u.id=m.user_id WHERE m.company_id=? ORDER BY u.full_name''',(co['id'],))]
+            admin_count=one(con,"SELECT COUNT(*) AS n FROM memberships WHERE company_id=? AND role='admin'",(co['id'],))['n']
             businesses=admin_companies(con,user)
             pending=[dict(x) for x in allrows(con,'''SELECT id,email,full_name,created_at FROM users
                 WHERE can_create_company=1 AND active=1 AND invited_from_company_id=? ORDER BY id DESC''',(co['id'],))]
-        return view(request,'team.html',members=members,businesses=businesses,pending=pending)
+        return view(request,'team.html',members=members,businesses=businesses,pending=pending,admin_count=admin_count)
 
     @app.post('/team')
     async def save_member(request:Request):
@@ -791,6 +793,39 @@ def create_app(data_dir=None):
             notify(request,'Zugang gespeichert: '+ ('Geschaeftsleitung fuer dieses Geschaeft' if role=='admin' else 'Zugriff auf dieses Geschaeft'))
         except (ValueError, sqlite3.IntegrityError) as exc:
             notify(request,str(exc),'error')
+        return redirect('/team')
+
+    @app.post('/team/{member_id}/own-business')
+    async def team_enable_own_business(request:Request, member_id:int):
+        """Convert an accidentally assigned single-company user into an isolated invitee.
+
+        No company data is deleted or transferred. Current access is revoked
+        immediately, including in already-open browser sessions.
+        """
+        user,co=current(request,'admin')
+        await form(request)
+        if member_id == user['id']:
+            raise HTTPException(403,'Du kannst deinen eigenen Zugang nicht umstellen.')
+        with transaction(db_path,True) as con:
+            target=one(con,'''SELECT u.id,u.email,u.is_superadmin,u.active,u.can_create_company,m.role
+                FROM users u JOIN memberships m ON m.user_id=u.id
+                WHERE u.id=? AND m.company_id=?''',(member_id,co['id']))
+            if not target:
+                raise HTTPException(404,'Benutzer gehört nicht zu diesem Geschäft.')
+            if target['is_superadmin'] or not target['active'] or target['can_create_company']:
+                raise HTTPException(403,'Dieser Benutzer kann nicht umgestellt werden.')
+            total=one(con,'SELECT COUNT(*) AS n FROM memberships WHERE user_id=?',(member_id,))['n']
+            if total != 1:
+                raise HTTPException(409,'Ein Konto mit mehreren Geschäftszuordnungen darf nicht automatisch umgestellt werden.')
+            if target['role']=='admin':
+                admins=one(con,"SELECT COUNT(*) AS n FROM memberships WHERE company_id=? AND role='admin'",(co['id'],))['n']
+                if admins<=1:
+                    raise HTTPException(409,'Der letzte Geschäftsadministrator darf nicht entfernt werden.')
+            con.execute('DELETE FROM memberships WHERE company_id=? AND user_id=?',(co['id'],member_id))
+            con.execute('''UPDATE users SET can_create_company=1, restricted_company_id=NULL,
+                invited_from_company_id=? WHERE id=?''',(co['id'],member_id))
+            audit(con,co['id'],user['id'],'Benutzer zur eigenen Geschäftseinrichtung umgestellt',target['email'])
+        notify(request,'Die bisherige Berechtigung wurde aufgehoben. Beim nächsten Aufruf erscheint für diesen Benutzer nur noch die Einrichtung seines eigenen Geschäfts.')
         return redirect('/team')
 
     @app.post('/team/pending/{member_id}/cancel')

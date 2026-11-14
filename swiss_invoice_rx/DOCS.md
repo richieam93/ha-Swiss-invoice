@@ -1,3 +1,23 @@
+## Benutzer mit komplett eigenem Geschäft (Version 2.9.0)
+
+Beim Anlegen eines Benutzers unter **Benutzer & Berechtigungen** die Option
+**„Eigenes Geschäft erstellen – volle Rechte nur im neuen Geschäft“** aktivieren.
+Die Person wird **nicht** deinem Geschäft hinzugefügt. Beim ersten Login startet der
+Einrichtungsassistent mit Geschäftsart, Anschrift, Logo, Passwort, Bank-/QR-Daten und
+MWST. Anschliessend kann sie **sämtliche Funktionen innerhalb ihres eigenen
+Geschäfts** verwenden und dort selbst Mitarbeiter verwalten. Die installierungsweite
+Gesamt-Datensicherung sowie die Verwaltung fremder Geschäftsmitgliedschaften bleiben
+beim Hauptadministrator.
+
+Wurde eine Person in einer älteren Version versehentlich deinem Geschäft zugeordnet,
+kannst du ihre Einzelzuordnung unter **Benutzer** mit **„Eigenes Geschäft einrichten
+lassen“** widerrufen und die Einrichtung aktivieren. Der alte Zugriff endet sofort.
+Bestehende Kunden, Belege und Archiv-PDFs bleiben in deinem Geschäft erhalten.
+
+**Wichtig:** Neue Geschäftsdaten werden strikt getrennt gespeichert. Es werden
+weder alte Belege kopiert noch alte Zugriffsrechte übernommen. Details siehe
+[Update 2.9](../UPDATE_2_9.md).
+
 # Swiss-invoice-RX – Home Assistant Installation
 
 ## Voraussetzungen
