@@ -2,7 +2,7 @@
 # Kein BUILD_FROM erforderlich (Home Assistant Supervisor 2026.04+).
 FROM python:3.12-slim-bookworm
 
-ARG BUILD_VERSION=2.6.0
+ARG BUILD_VERSION=2.8.0
 ARG BUILD_ARCH=amd64
 LABEL \
     io.hass.version="${BUILD_VERSION}" \

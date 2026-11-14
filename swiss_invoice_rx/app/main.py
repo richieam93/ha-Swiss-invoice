@@ -1,9 +1,10 @@
-"""Swiss-invoice-RX: lokale FastAPI-Webanwendung (nur 127.0.0.1)."""
+"""Swiss-invoice-RX: lokale FastAPI-Webanwendung fuer Ingress und Heimnetz."""
 import csv
 import base64
 import hashlib
 import hmac
 import io
+import ipaddress
 import json
 import os
 import re
@@ -15,7 +16,7 @@ import zipfile
 from datetime import date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
-from urllib.parse import quote, urlencode
+from urllib.parse import quote, urlencode, parse_qsl
 
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, Response, FileResponse
@@ -86,23 +87,32 @@ def create_app(data_dir=None):
 
     @app.middleware('http')
     async def safety_headers(request, call_next):
-        """Home-Assistant-Ingress: nur Supervisor-IP, Pfade und Weiterleitungen.
+        """Ingress vom Supervisor vertrauen; direkte LAN-Aufrufe ohne Ingress-Prefix.
 
-        Der Supervisor setzt X-Ingress-Path; wir uebernehmen keinen anderen
-        Host-/Pfad-Header als Grundlage fuer Links oder Berechtigungen.
+        Ingress-Header werden ausschliesslich von 172.30.32.2 angenommen. Auch
+        bei freigegebenem Host-Port ist die reguläre Benutzeranmeldung Pflicht.
+        Direkte Aufrufe von oeffentlichen IP-Adressen werden abgewiesen (kein
+        Ersatz fuer Router-/Firewall-Regeln bei NAT oder Reverse Proxies).
         """
         ingress_mode = os.environ.get('SWISS_INVOICE_INGRESS') == '1'
         ingress_prefix = ''
         if ingress_mode:
-            client_ip = request.client.host if request.client else ''
-            # /health ist nur vom Container selbst fuer den Docker Healthcheck zugaenglich.
-            if client_ip not in ('172.30.32.2', '127.0.0.1', '::1'):
-                return Response('Zugriff nur ueber Home Assistant erlaubt.', status_code=403)
+            client_host = request.client.host if request.client else ''
+            trusted_ingress = client_host == '172.30.32.2'
             forwarded = request.headers.get('x-ingress-path', '').rstrip('/')
-            if forwarded and re.fullmatch(r'/api/hassio_ingress/[a-zA-Z0-9._~-]+', forwarded):
+            if forwarded:
+                if not trusted_ingress:
+                    return Response('Ingress-Header nur vom Home-Assistant-Supervisor erlaubt.', status_code=403)
+                if not re.fullmatch(r'/api/hassio_ingress/[a-zA-Z0-9._~-]+', forwarded):
+                    return Response('Ungueltiger Home-Assistant-Ingress-Pfad.', status_code=400)
                 ingress_prefix = forwarded
-            elif forwarded:
-                return Response('Ungueltiger Home-Assistant-Ingress-Pfad.', status_code=400)
+            if not trusted_ingress:
+                try:
+                    address = ipaddress.ip_address(client_host.split('%', 1)[0])
+                except ValueError:
+                    return Response('Zugriff aus diesem Netz nicht erlaubt.', status_code=403)
+                if not (address.is_private or address.is_loopback):
+                    return Response('Zugriff nur im lokalen Netz erlaubt.', status_code=403)
         request.state.ingress_prefix = ingress_prefix
         response = await call_next(request)
         if ingress_prefix:
@@ -1621,6 +1631,58 @@ def create_app(data_dir=None):
             iid=duplicate(con,co['id'],src,kind or src['kind'],co,user['id'],credit=action=='credit')
         notify(request,'Neuer bearbeitbarer Entwurf erstellt')
         return redirect(f'/invoices/{iid}/edit')
+
+    @app.post('/invoices/{rid}/delete')
+    async def delete_draft(request:Request,rid:int):
+        # Only editable, never issued documents may be permanently removed.
+        user,co=current(request,'editor')
+        data=await form(request)
+        with transaction(db_path,True) as con:
+            inv=fetch(con,'invoices',co['id'],rid)
+            if inv['status']!='draft':
+                raise HTTPException(409,'Nur Entwuerfe koennen geloescht werden. Freigegebene Belege bleiben erhalten.')
+            if inv['pdf_file'] or inv['issued_at'] or cents(inv['paid_total'])!=0:
+                raise HTTPException(409,'Dieser Entwurf hat bereits Beleg- oder Zahlungsdaten und kann nicht geloescht werden.')
+            # Do not silently cascade deletion of schedules or financial records.
+            for table in ('payments','reminders','recurrings','stock_movements'):
+                column='source_invoice_id' if table=='recurrings' else 'invoice_id'
+                linked=one(con,f'SELECT id FROM {table} WHERE company_id=? AND {column}=? LIMIT 1',(co['id'],rid))
+                if linked:
+                    raise HTTPException(409,'Entwurf wird noch verwendet. Zuerst zugehoerige Buchungen oder Wiederholungen pruefen.')
+            linked_final=one(con,"SELECT id FROM invoices WHERE company_id=? AND parent_id=? AND status!='draft' LIMIT 1",(co['id'],rid))
+            if linked_final:
+                raise HTTPException(409,'Entwurf ist mit einem freigegebenen Beleg verknuepft und kann nicht geloescht werden.')
+            # Keep cloned drafts, but remove their link to the deleted source.
+            con.execute("UPDATE invoices SET parent_id=NULL WHERE company_id=? AND parent_id=? AND status='draft'",
+                        (co['id'],rid))
+            deleted=con.execute("DELETE FROM invoices WHERE id=? AND company_id=? AND status='draft'",
+                                (rid,co['id']))
+            if deleted.rowcount!=1:
+                raise HTTPException(409,'Entwurf wurde inzwischen geaendert. Bitte Liste neu laden.')
+            audit(con,co['id'],user['id'],'Entwurf geloescht',f"{inv['number']} ({inv['kind']})")
+        notify(request,f"Entwurf {inv['number']} wurde geloescht.")
+        # Retain search and filters, without accepting untrusted redirect URLs.
+        requested=str(data.get('return_query',''))[:800]
+        query={'kind':inv['kind']}
+        try:
+            for key,value in parse_qsl(requested,keep_blank_values=True,max_num_fields=14):
+                if key in query or len(value)>80:
+                    continue
+                if key=='q':
+                    query[key]=value
+                elif key=='status' and value in ('','draft','sent','partial','paid','overdue','cancelled'):
+                    query[key]=value
+                elif key=='currency' and value in ('','CHF','EUR'):
+                    query[key]=value
+                elif key=='sort' and value in ('newest','oldest','due','amount'):
+                    query[key]=value
+                elif key in ('date_from','date_to') and (not value or re.fullmatch(r'\d{4}-\d{2}-\d{2}',value)):
+                    query[key]=value
+                elif key=='page' and value.isdecimal() and 1<=int(value)<=100000:
+                    query[key]=value
+        except ValueError:
+            pass
+        return redirect('/invoices?'+urlencode(query))
 
     @app.post('/invoices/{rid}/cancel')
     async def cancel_invoice(request:Request,rid:int):

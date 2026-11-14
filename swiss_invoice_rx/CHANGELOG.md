@@ -1,3 +1,23 @@
+## 2.8.0 - Lokaler Netzwerkzugang mit konfigurierbarem Port
+
+- Home Assistant kann Port `8765/tcp` gezielt an das Heimnetz freigeben; standardmäßig ist die Freigabe aus (Ingress bleibt aktiv), Host-Port unter `Netzwerk` einschaltbar, änderbar oder deaktivierbar.
+- Home-Assistant-Ingress und Seitenleisten-Zugriff bleiben erhalten.
+- Direkter LAN-Zugriff verwendet weiterhin das eigene Swiss-invoice-RX-Login und die bisherigen Geschäftsrechte.
+- Ingress-Pfad-Header werden nur von der Supervisor-IP akzeptiert; private LAN-Clients erhalten direkte Pfade ohne Ingress-Prefix.
+- Verbindungen mit oeffentlichen Client-Adressen werden abgewiesen; kein Ersatz fuer eine Router-Firewall.
+- Keine Aenderung an Datenbankschema, Rechnungen, PDF, QR-Zahlteilen, Logos oder vorhandenen Benutzern.
+
+## 2.7.0 - Entwuerfe direkt aus der Rechnungsliste loeschen
+
+- Entwuerfe von Rechnungen, Offerten und Gutschriften in der Belegliste und Detailansicht dauerhaft loeschen.
+- Vor dem Loeschen eine Bestaetigung anzeigen; danach wird die Positionstabelle mit entfernt.
+- Freigegebene, bezahlte oder archivierte Belege sind nicht loeschbar.
+- Mandantentrennung, Benutzerrechte und CSRF-Pruefung greifen auch beim Loeschen serverseitig.
+- Geplante Wiederholungen, bestehende Zahlungs-/Lagerdaten und freigegebene Folgebelege werden gegen versehentliche Mitloeschung geschuetzt.
+- Aktivitaetsprotokoll vermerkt das Loeschen mit Belegnummer; bestehende Kunden, Artikel und Belegnummernkreise bleiben unveraendert.
+- Such- und Statusfilter werden nach dem Loeschen beibehalten.
+- Keine Datenbankmigration erforderlich; bestehende Daten bleiben erhalten.
+
 ## 2.6.0 - Benutzer mit eigener Geschaeftseinrichtung
 
 - Einladung von Benutzern ohne Zugriff auf das einladende Geschäft.
@@ -6,6 +26,7 @@
 - Geschäftsart und MWST-Status können in Firmendaten später angepasst werden.
 - Ausstehende Einladungen sichtbar und widerrufbar, ohne andere Geschäftsdaten zu verändern.
 - Serverseitige Zugriffskontrollen, sichere tenant-scoped Logo-Dateien und additive SQLite-Migration.
+- Steuerliche Hinweise basieren auf den ESTV-Angaben, ersetzen keine Einzelfallprüfung.
 
 ## 2.5.0 - Rechnungslogo im Studio und PDF, Entwurfs-Kennzeichnung einstellbar
 

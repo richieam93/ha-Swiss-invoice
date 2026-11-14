@@ -31,6 +31,6 @@ if [ "$RESTORE" = 'yes' ]; then
     fi
 fi
 
-echo "[Swiss-invoice-RX] Starte Webserver auf Port 8765 (nur Home-Assistant-Ingress)."
+echo "[Swiss-invoice-RX] Starte Webserver auf Port 8765 (Home-Assistant-Ingress und optionaler LAN-Zugriff)."
 exec python -m uvicorn app.main:app --host 0.0.0.0 --port 8765 \
     --no-proxy-headers --no-access-log --log-level "$LOG_LEVEL"

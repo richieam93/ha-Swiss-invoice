@@ -1,5 +1,7 @@
 # Swiss-invoice-RX für Home Assistant 🇨🇭
 
+
+
 **Schweizer Rechnungssoftware als Home-Assistant-Add-on.**
 
 Swiss-invoice-RX Home-Assistant
@@ -14,7 +16,6 @@ Swiss-invoice-RX Home-Assistant
 - Mehrere Geschäfte mit getrennter Datenbankzuordnung
 - Benutzerverwaltung 
 - Lokale SQLite-Datenbank und Home-Assistant-Backups
-
 
 ## Installation in Home Assistant
 
@@ -53,14 +54,13 @@ ha-Swiss-invoice/
 
 ## Sicherheit und Datenschutz
 
-Der Zugriff erfolgt ausschliesslich über **Home Assistant Ingress**, ohne einen öffentlichen TCP-Port. Für die Mandantenrechte gibt es **zusätzlich zur Home-Assistant-Anmeldung eine eigene Benutzeranmeldung**.
+Die Weboberflaeche ist ueber **Home Assistant Ingress** und optional auch direkt
+im **lokalen Netz** erreichbar. Die Host-Portfreigabe wird in den App-Netzwerkeinstellungen
+gezielt eingeschaltet oder wieder ausgeschaltet. Fuer die Mandantenrechte gibt es weiterhin **eine eigene
+Swiss-invoice-RX-Anmeldung**, unabhaengig von der Home-Assistant-Anmeldung.
+Bitte keine Portweiterleitung im Router oder ungeschuetzte Internetfreigabe einrichten:
+HTTP im Heimnetz ist nicht verschluesselt.
 
 
 
 
-## Swiss-invoice-RX 2.5.0: PDF-Logo und Entwurfsanzeige
-
-Das Geschäftslogo wird auch im Vorlagen-Studio, freien PDF-Designer und auf neuen PDFs
-verwendet, falls kein gesondertes Rechnungslogo gesetzt ist. Unter Firmendaten kann die
-Entwurfs-Kennzeichnung für heruntergeladene Entwurfs-PDFs pro Geschäft deaktiviert werden.
-Musterbelege behalten ihre Kennzeichnung. Bereits archivierte PDFs werden nicht verändert.

@@ -36,11 +36,13 @@ class ConfigTests(unittest.TestCase):
         self.assertIn('richieam93/ha-Swiss-invoice', repo['url'])
         self.assertEqual(cfg['slug'], HERE.name)
         self.assertEqual(cfg['name'], 'Swiss-invoice-RX')
-        self.assertEqual(cfg['version'], '2.6.0')
+        self.assertEqual(cfg['version'], '2.8.0')
         self.assertTrue(cfg['ingress'])
         self.assertEqual(cfg['ingress_port'], 8765)
         self.assertFalse(cfg['panel_admin'])
-        self.assertNotIn('ports', cfg)  # kein offener Port ins Heimnetz
+        self.assertIsNone(cfg['ports']['8765/tcp'])  # bewusst opt-in nach Home-Assistant-Empfehlung
+        self.assertNotIn('webui', cfg)  # Ingress bleibt primaerer Einstieg
+        self.assertFalse(cfg.get('host_network', False))
         self.assertEqual(cfg['backup'], 'cold')
         self.assertEqual(set(cfg['arch']), {'amd64','aarch64'})
 
@@ -144,12 +146,19 @@ class IngressTests(unittest.TestCase):
                         self.assertEqual(health.json()['application'],'Swiss-invoice-RX')
                         bad=await c.get('/help',headers={'X-Ingress-Path':'/evil/path'})
                         self.assertEqual(bad.status_code,400)
-                    # Der Port ist nicht in das Heimnetz veroeffentlicht; auch private
-                    # Docker-Netzwerk-Nachbarn ausser dem Supervisor werden blockiert.
-                    outsider=httpx.ASGITransport(app=app,client=('172.30.32.12',12345))
+                    # Private LAN-IP erlaubt, aber ohne Sitzung keine Firmendaten.
+                    outsider=httpx.ASGITransport(app=app,client=('192.168.1.27',12345))
                     async with httpx.AsyncClient(transport=outsider,base_url='http://internal') as c:
-                        r=await c.get('/health')
-                        self.assertEqual(r.status_code,403)
+                        self.assertEqual((await c.get('/health')).status_code,200)
+                        r=await c.get('/dashboard',follow_redirects=False)
+                        self.assertEqual(r.status_code,303)
+                        self.assertEqual(r.headers['location'],'/login')
+                        # Direkte LAN-Benutzer duerfen keinen Supervisor-Header faelschen.
+                        spoof=await c.get('/',headers={'X-Ingress-Path':PREFIX})
+                        self.assertEqual(spoof.status_code,403)
+                    public=httpx.ASGITransport(app=app,client=('8.8.8.8',12345))
+                    async with httpx.AsyncClient(transport=public,base_url='http://internal') as c:
+                        self.assertEqual((await c.get('/health')).status_code,403)
                 asyncio.run(run())
 
 
