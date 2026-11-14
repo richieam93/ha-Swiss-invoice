@@ -8,6 +8,7 @@ PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS users (
  id INTEGER PRIMARY KEY, email TEXT NOT NULL UNIQUE COLLATE NOCASE,
  password_hash TEXT NOT NULL, full_name TEXT NOT NULL,
+ session_nonce TEXT NOT NULL DEFAULT '',
  restricted_company_id INTEGER DEFAULT NULL,
  can_create_company INTEGER NOT NULL DEFAULT 0,
  invited_from_company_id INTEGER DEFAULT NULL,
@@ -15,6 +16,11 @@ CREATE TABLE IF NOT EXISTS users (
  failed_logins INTEGER NOT NULL DEFAULT 0, locked_until TEXT DEFAULT '',
  created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+-- Keep historical user IDs from being reassigned after account deletion.
+CREATE TABLE IF NOT EXISTS user_id_counter (
+ id INTEGER PRIMARY KEY CHECK(id=1), last_id INTEGER NOT NULL DEFAULT 0
+);
+INSERT OR IGNORE INTO user_id_counter(id,last_id) VALUES(1,0);
 CREATE TABLE IF NOT EXISTS companies (
  id INTEGER PRIMARY KEY, name TEXT NOT NULL, street TEXT NOT NULL DEFAULT '',
  building TEXT NOT NULL DEFAULT '', zip TEXT NOT NULL DEFAULT '', city TEXT NOT NULL DEFAULT '',
@@ -178,7 +184,8 @@ def initialize(path):
         con.executescript(SCHEMA)
         # SQLite erweitert vorhandene Installationen additiv, ohne Belege zu loeschen.
         extra_columns = {
-            'users': {'restricted_company_id': 'INTEGER DEFAULT NULL',
+            'users': {'session_nonce': "TEXT NOT NULL DEFAULT ''",
+                      'restricted_company_id': 'INTEGER DEFAULT NULL',
                       'can_create_company': 'INTEGER NOT NULL DEFAULT 0',
                       'invited_from_company_id': 'INTEGER DEFAULT NULL'},
             'customers': {'payment_days': 'INTEGER NOT NULL DEFAULT 0'},
@@ -224,7 +231,7 @@ def initialize(path):
             for field, declaration in columns.items():
                 if field not in existing:
                     con.execute(f'ALTER TABLE {table} ADD COLUMN {field} {declaration}')
-        con.execute('PRAGMA user_version=14')
+        con.execute('PRAGMA user_version=15')
         con.execute('PRAGMA journal_mode=WAL')
         con.commit()
     finally:
@@ -252,6 +259,15 @@ def one(con, sql, args=()):
 
 def allrows(con, sql, args=()):
     return con.execute(sql, args).fetchall()
+
+
+def next_user_id(con):
+    """Reserve a never-before-issued ID inside an IMMEDIATE write transaction."""
+    last=con.execute('SELECT last_id FROM user_id_counter WHERE id=1').fetchone()[0]
+    maximum=con.execute('SELECT COALESCE(MAX(id),0) FROM users').fetchone()[0]
+    nxt=max(last,maximum)+1
+    con.execute('UPDATE user_id_counter SET last_id=? WHERE id=1',(nxt,))
+    return nxt
 
 
 def audit(con, company_id, user_id, action, detail=''):

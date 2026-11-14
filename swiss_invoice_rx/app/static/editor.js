@@ -221,7 +221,7 @@ const SWISS_BASE = document.querySelector('meta[name="swiss-invoice-base"]')?.ge
     const found=items.filter(item => [item.name,item.sku,item.category,item.description]
       .some(value=>String(value||'').toLocaleLowerCase('de-CH').includes(query))).slice(0,9);
     if (!found.length) {
-      const note=document.createElement('p');note.className='small-help';note.textContent='Kein Treffer. Du kannst eine freie Position anlegen.';
+      const note=document.createElement('p');note.className='small-help';note.textContent='Kein Treffer. Eine freie Position kann ergänzt werden.';
       searchResults.appendChild(note);
     }
     found.forEach(item => {

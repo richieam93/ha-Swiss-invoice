@@ -225,7 +225,7 @@ class WebTests(unittest.TestCase):
         r=self.client.get('/team')
         self.assertIn('helper@example.ch',r.text)
         r=self.client.post('/team/2/remove',data={'_csrf':self.csrf()})
-        self.assertIn('Benutzerzugriff fuer dieses Geschaeft entfernt',r.text)
+        self.assertIn('Benutzerkonto gelöscht',r.text)
         self.assertNotIn('helper@example.ch',self.client.get('/team').text)
 
     def test_customer_history(self):

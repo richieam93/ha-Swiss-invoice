@@ -5,20 +5,20 @@
   <div>
     <span class="eyebrow">SYSTEM / GESCHÄFTSZUGRIFFE</span>
     <h1>Benutzer &amp; Berechtigungen</h1>
-    <p>Bestimme für jede Person das Geschäft und was sie darin machen darf.</p>
+    <p>Geschäftszuordnung und Zugriffsrechte verwalten.</p>
   </div>
 </div>
 
 <div class="hi-team-layout">
   <section class="card hi-team-new">
     <div class="section-title"><h2>Benutzer erstellen oder zuordnen</h2><span class="hi-team-step">NEU</span></div>
-    <p class="small-help">Wähle, ob die Person hier mitarbeitet oder beim ersten Login <b>ein vollständig eigenes Geschäft</b> einrichtet.</p>
+    <p class="small-help">Benutzer einem bestehenden Geschäft zuordnen oder eine eigene Geschäftseinrichtung ermöglichen.</p>
     <form method="post" action="{{ ingress_prefix }}/team" id="team-user-form">
       <input type="hidden" name="_csrf" value="{{ csrf }}">
       <div class="own-company-option">
         <label class="own-company-check" for="team-own-company">
           <input type="checkbox" id="team-own-company" name="create_own_company" value="1">
-          <span><strong>Eigenes Geschäft erstellen – volle Rechte nur im neuen Geschäft</strong><small>Kein Zugriff auf deine Kunden oder Rechnungen. Beim ersten Login erscheint die geführte Einrichtung mit Logo, Rechnungsadresse, Bank-/QR-Daten und MWST. Danach ist die Person Administrator ihres eigenen Geschäfts.</small></span>
+          <span><strong>Eigenes Geschäft erstellen – volle Rechte nur im neuen Geschäft</strong><small>Kein Zugriff auf bestehende Geschäftsdaten. Beim ersten Login startet der Einrichtungsassistent; anschliessend bestehen volle Rechte nur im neuen Geschäft.</small></span>
         </label>
       </div>
       <div id="team-assign-fields">
@@ -57,7 +57,7 @@
 
   <section class="card hi-team-existing">
     <div class="section-title"><h2>Benutzer dieses Geschäfts</h2><span class="small-help">{{ members|length }} Person(en)</span></div>
-    <p class="small-help">Hier verwaltest du nur <b>{{ active_company.name }}</b>. Änderungen an Rollen wirken ausschliesslich in diesem Geschäft.</p>
+    <p class="small-help">Benutzer und Rollen des Geschäfts <b>{{ active_company.name }}</b>. Rechteänderungen gelten nur in diesem Geschäft.</p>
     {% if members %}
     <div class="table-scroll">
       <table class="table hi-stacked">
@@ -65,7 +65,7 @@
         <tbody>{% for m in members %}
         <tr>
           <td data-label="Benutzer"><b>{{ m.full_name }}</b><div class="subtext">{{ m.email }}</div>
-            {% if m.id==user.id %}<div class="subtext">Du selbst</div>{% endif %}
+            {% if m.id==user.id %}<div class="subtext">Eigenes Konto</div>{% endif %}
             {% if m.is_superadmin %}<div class="subtext">Hauptadministrator (alle eigenen Geschäftszugriffe)</div>
             {% elif m.restricted_company_id==active_company.id %}<div class="subtext">🔒 Nur dieses Geschäft</div>
             {% else %}<div class="subtext">Mehrfachzugriff möglich</div>{% endif %}
@@ -97,12 +97,12 @@
           </td>
           <td data-label="Aktion" data-wide="true">
           {% if m.id!=user.id and (not m.is_superadmin or user.is_superadmin) %}
-            <form action="{{ ingress_prefix }}/team/{{ m.id }}/remove" method="post"><input type="hidden" name="_csrf" value="{{ csrf }}"><button type="submit" class="btn btn-sm btn-danger" data-confirm="Zugriff auf dieses Geschäft für diesen Benutzer entfernen?">Entfernen</button></form>
+            <form action="{{ ingress_prefix }}/team/{{ m.id }}/remove" method="post"><input type="hidden" name="_csrf" value="{{ csrf }}">{% if m.memberships_count == 1 and not m.is_superadmin %}<button type="submit" class="btn btn-sm btn-danger" data-confirm="Benutzerkonto endgültig löschen? Die E-Mail-Adresse wird für neue Konten frei. Bestehende Belege und Protokolle bleiben erhalten.">Benutzer löschen</button>{% else %}<button type="submit" class="btn btn-sm btn-danger" data-confirm="Zugriff auf dieses Geschäft entfernen? Das Konto bleibt für andere Geschäfte bestehen.">Zugriff entfernen</button>{% endif %}</form>
           {% else %}<span class="small-help">Geschützt</span>{% endif %}
           {% if m.id != user.id and not m.is_superadmin and m.memberships_count == 1 and (m.role != 'admin' or admin_count > 1) %}
             <form action="{{ ingress_prefix }}/team/{{ m.id }}/own-business" method="post" class="mt-2">
               <input type="hidden" name="_csrf" value="{{ csrf }}">
-              <button type="submit" class="btn btn-sm" data-confirm="Diesem Benutzer sofort den bisherigen Geschäftszugriff entziehen und stattdessen die Einrichtung eines eigenen Geschäfts erlauben? Bereits erfasste Rechnungen bleiben in deinem Geschäft.">Eigenes Geschäft einrichten lassen</button>
+              <button type="submit" class="btn btn-sm" data-confirm="Diesem Benutzer sofort den bisherigen Geschäftszugriff entziehen und stattdessen die Einrichtung eines eigenen Geschäfts erlauben? Bestehende Rechnungen verbleiben im bisherigen Geschäft.">Eigenes Geschäft einrichten lassen</button>
             </form>
           {% endif %}
           </td>
@@ -110,13 +110,13 @@
       </table>
     </div>
     {% else %}<p>Noch keine Benutzer zugeordnet.</p>{% endif %}
-    <div class="info-box mt-3">Der letzte Geschäftsadministrator und dein eigener Zugang bleiben geschützt. Bereits zugeordnete Mitarbeiter können über „Eigenes Geschäft einrichten lassen“ auf einen unabhängigen Einrichtungsassistenten umgestellt werden. Die bisherigen Rechnungen bleiben in diesem Geschäft.</div>
+    <div class="info-box mt-3">Das Entfernen des letzten Geschäftszugriffs löscht auch das Benutzerkonto; die E-Mail-Adresse wird wieder verfügbar. Konten mit mehreren Geschäften bleiben bestehen. Der letzte Geschäftsadministrator und das eigene Konto bleiben geschützt. Zugeordnete Mitarbeiter können über „Eigenes Geschäft einrichten lassen“ auf einen unabhängigen Einrichtungsassistenten umgestellt werden. Die bisherigen Rechnungen bleiben in diesem Geschäft.</div>
   </section>
 </div>
 {% if pending %}
 <section class="card mt-3">
   <div class="section-title"><h2>Ausstehende eigene Geschäftseinrichtungen</h2><span class="pill">{{ pending|length }} offen</span></div>
-  <p class="small-help">Diese Konten haben <strong>keinen Zugriff</strong> auf dein Geschäft. Sie können nur ihre eigene Einrichtung abschliessen.</p>
+  <p class="small-help">Diese Konten haben <strong>keinen Zugriff</strong> auf bestehende Geschäftsdaten. Sie können nur ihre eigene Einrichtung abschliessen.</p>
   <div class="table-scroll"><table class="table hi-stacked"><thead><tr><th>Benutzer</th><th>Erstellt</th><th>Einladung</th></tr></thead><tbody>
     {% for m in pending %}<tr>
       <td data-label="Benutzer"><strong>{{ m.full_name }}</strong><div class="subtext">{{ m.email }}</div></td>

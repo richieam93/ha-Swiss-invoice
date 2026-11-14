@@ -1,7 +1,7 @@
 configuration:
   log_level:
     name: Protokollierungsstufe
-    description: Wie ausfuehrlich sollen technische Meldungen angezeigt werden?
+    description: Umfang der technischen Protokollmeldungen.
   import_backup:
-    name: Windows-Sicherung einmalig importieren
-    description: "Nur bei leerer Datenbank. Backup zuvor nach /share/swiss-invoice-rx/import.zip kopieren. Bestehende Daten werden niemals ueberschrieben."
+    name: Vorhandene Sicherung importieren
+    description: "Einmaliger Import bei leerer Datenbank aus /share/swiss-invoice-rx/import.zip. Bestehende Daten bleiben unveraendert."

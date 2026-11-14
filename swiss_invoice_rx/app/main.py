@@ -26,7 +26,7 @@ from PIL import Image, UnidentifiedImageError
 from starlette.datastructures import UploadFile
 from starlette.middleware.sessions import SessionMiddleware
 
-from .db import initialize, transaction, one, allrows, audit, db_connect
+from .db import initialize, transaction, one, allrows, audit, db_connect, next_user_id
 from .business_profile import BUSINESS_TYPES, parse_profile
 from .billing import (dec, cents, money, num, percent, hash_password, check_password,
                       future, valid_date, safe_color, invoice_status)
@@ -137,6 +137,13 @@ def create_app(data_dir=None):
             return None
         with transaction(db_path) as con:
             u = one(con, 'SELECT * FROM users WHERE id=? AND active=1', (uid,))
+            # A removed account must not inherit the session of a later account,
+            # even if SQLite reuses the same integer user ID. Old sessions from
+            # versions without a nonce are intentionally invalidated on upgrade.
+            if not u or not u['session_nonce'] or not hmac.compare_digest(
+                    str(request.session.get('session_nonce') or ''), u['session_nonce']):
+                request.session.clear()
+                return None
             return to_dict(u)
 
     def permitted_companies(con, user):
@@ -479,14 +486,16 @@ def create_app(data_dir=None):
                 pwd=str(data.get('password',''))
                 if pwd != data.get('password2'):
                     raise ValueError('Passwoerter stimmen nicht ueberein')
-                con.execute('INSERT INTO users(email,full_name,password_hash,is_superadmin) VALUES(?,?,?,1)',
-                            (email,str(data.get('full_name','Admin')).strip() or 'Admin', hash_password(pwd)))
-                uid=con.execute('SELECT last_insert_rowid()').fetchone()[0]
+                login_nonce=secrets.token_hex(32)
+                uid=next_user_id(con)
+                con.execute('''INSERT INTO users(id,email,full_name,password_hash,session_nonce,is_superadmin)
+                    VALUES(?,?,?,?,?,1)''',
+                    (uid,email,str(data.get('full_name','Admin')).strip() or 'Admin', hash_password(pwd),login_nonce))
                 con.execute('INSERT INTO companies(name) VALUES(?)',(name,))
                 cid=con.execute('SELECT last_insert_rowid()').fetchone()[0]
                 con.execute("INSERT INTO memberships(company_id,user_id,role) VALUES(?,?,'admin')",(cid,uid))
             request.session.clear()
-            request.session.update({'uid':uid,'cid':cid,'csrf':secrets.token_hex(24)})
+            request.session.update({'uid':uid,'cid':cid,'session_nonce':login_nonce,'csrf':secrets.token_hex(24)})
             notify(request,'Einrichtung abgeschlossen. Bitte Firmendaten und IBAN vervollstaendigen.')
             return redirect('/settings')
         except (ValueError, sqlite3.IntegrityError) as exc:
@@ -518,7 +527,9 @@ def create_app(data_dir=None):
                     con.execute('UPDATE users SET failed_logins=?,locked_until=? WHERE id=?',(fails,lock,u['id']))
                 notify(request,'Anmeldung fehlgeschlagen oder Konto voruebergehend gesperrt.','error')
                 return redirect('/login')
-            con.execute("UPDATE users SET failed_logins=0,locked_until='' WHERE id=?",(u['id'],))
+            login_nonce=u['session_nonce'] or secrets.token_hex(32)
+            con.execute("UPDATE users SET failed_logins=0,locked_until='',session_nonce=? WHERE id=?",
+                        (login_nonce,u['id']))
             m=one(con,'''SELECT company_id FROM memberships WHERE user_id=?
                 AND (? IS NULL OR company_id=?) ORDER BY company_id LIMIT 1''',
                 (u['id'],u['restricted_company_id'],u['restricted_company_id']))
@@ -526,7 +537,7 @@ def create_app(data_dir=None):
                 notify(request,'Keinem Unternehmen zugeordnet.','error')
                 return redirect('/login')
         request.session.clear()
-        request.session.update({'uid':u['id'],'csrf':secrets.token_hex(24)})
+        request.session.update({'uid':u['id'],'session_nonce':login_nonce,'csrf':secrets.token_hex(24)})
         if not m:
             return redirect('/onboarding')
         request.session['cid']=m['company_id']
@@ -554,7 +565,7 @@ def create_app(data_dir=None):
         data=await form(request)
         with transaction(db_path) as con:
             if not user['can_create_company'] or one(con,'SELECT 1 FROM memberships WHERE user_id=?',(user['id'],)):
-                raise HTTPException(403,'Du hast bereits ein Geschäft oder keine Freigabe zur Einrichtung.')
+                raise HTTPException(403,'Geschäft bereits vorhanden oder keine Berechtigung zur Einrichtung.')
         image_path=None
         try:
             profile=parse_profile(data)
@@ -584,10 +595,13 @@ def create_app(data_dir=None):
                     image_path=save_company_logo(root,cid,logo_bytes)
                     con.execute('UPDATE companies SET app_logo_path=? WHERE id=?',(image_path,cid))
                 con.execute("INSERT INTO memberships(company_id,user_id,role) VALUES(?,?,'admin')",(cid,user['id']))
-                con.execute('UPDATE users SET can_create_company=0, restricted_company_id=?, password_hash=? WHERE id=?',(cid,password_hash,user['id']))
+                login_nonce=secrets.token_hex(32)
+                con.execute('''UPDATE users SET can_create_company=0, restricted_company_id=?,
+                    password_hash=?,session_nonce=? WHERE id=?''',(cid,password_hash,login_nonce,user['id']))
                 audit(con,cid,user['id'],'Eigenes Geschäft eingerichtet',profile['name']+' / '+profile['business_type'])
             request.session['cid']=cid
-            notify(request,'Dein eigenes Geschäft ist eingerichtet. Einstellungen und QR-Code kannst du jederzeit ändern.')
+            request.session['session_nonce']=login_nonce
+            notify(request,'Geschäft erfolgreich eingerichtet. Einstellungen und QR-Zahlungsdaten sind jederzeit änderbar.')
             return redirect('/dashboard')
         except HTTPException:
             raise
@@ -723,6 +737,17 @@ def create_app(data_dir=None):
                 WHERE can_create_company=1 AND active=1 AND invited_from_company_id=? ORDER BY id DESC''',(co['id'],))]
         return view(request,'team.html',members=members,businesses=businesses,pending=pending,admin_count=admin_count)
 
+    def purge_unassigned_account(con, email):
+        """Clean up users left behind by previous 'Entfernen' behaviour.
+
+        Only a non-superadmin, non-invited account without any memberships
+        qualifies. In particular, an account belonging to another business or
+        pending its own onboarding must never be recycled.
+        """
+        con.execute('''DELETE FROM users WHERE email=? AND is_superadmin=0
+            AND can_create_company=0 AND NOT EXISTS (
+                SELECT 1 FROM memberships WHERE memberships.user_id=users.id)''',(email,))
+
     @app.post('/team')
     async def save_member(request:Request):
         user,co=current(request,'admin')
@@ -737,12 +762,15 @@ def create_app(data_dir=None):
                 password=str(data.get('password',''))
                 hashed=hash_password(password)
                 with transaction(db_path,True) as con:
+                    purge_unassigned_account(con,email)
                     if one(con,'SELECT id FROM users WHERE email=?',(email,)):
-                        raise ValueError('Diese E-Mail-Adresse ist bereits vergeben. Für eine eigene Einrichtung einen neuen Benutzer anlegen.')
-                    con.execute('''INSERT INTO users(email,full_name,password_hash,can_create_company,invited_from_company_id)
-                        VALUES(?,?,?,1,?)''',(email,name or email,hashed,co['id']))
+                        raise ValueError('Diese E-Mail-Adresse gehört bereits zu einem bestehenden Konto oder einer offenen Einladung.')
+                    uid=next_user_id(con)
+                    con.execute('''INSERT INTO users(id,email,full_name,password_hash,session_nonce,
+                        can_create_company,invited_from_company_id) VALUES(?,?,?,?,?,1,?)''',
+                        (uid,email,name or email,hashed,secrets.token_hex(32),co['id']))
                     audit(con,co['id'],user['id'],'Eigene Einrichtung eingeladen',email)
-                notify(request,'Benutzer erstellt. Er hat keinen Zugriff auf dein Geschäft und richtet beim ersten Login sein eigenes ein.')
+                notify(request,'Benutzer angelegt. Kein Zugriff auf bestehende Geschäfte; eigene Einrichtung beim ersten Login.')
             except (ValueError,sqlite3.IntegrityError) as exc:
                 notify(request,str(exc),'error')
             return redirect('/team')
@@ -757,7 +785,8 @@ def create_app(data_dir=None):
         try:
             with transaction(db_path,True) as con:
                 if cid not in {c['id'] for c in admin_companies(con,user)}:
-                    raise HTTPException(403,'Dieses Geschaeft darfst du nicht verwalten')
+                    raise HTTPException(403,'Keine Berechtigung zur Verwaltung dieses Geschäfts.')
+                purge_unassigned_account(con,email)
                 existing=one(con,'SELECT * FROM users WHERE email=?',(email,))
                 if existing:
                     uid=existing['id']
@@ -776,10 +805,11 @@ def create_app(data_dir=None):
                                     (None if multi else cid,uid))
                 else:
                     password=str(data.get('password',''))
-                    con.execute('''INSERT INTO users(email,full_name,password_hash,restricted_company_id)
-                        VALUES(?,?,?,?)''',
-                        (email,name or email,hash_password(password),None if multi else cid))
-                    uid=con.execute('SELECT last_insert_rowid()').fetchone()[0]
+                    uid=next_user_id(con)
+                    con.execute('''INSERT INTO users(id,email,full_name,password_hash,session_nonce,
+                        restricted_company_id) VALUES(?,?,?,?,?,?)''',
+                        (uid,email,name or email,hash_password(password),secrets.token_hex(32),
+                         None if multi else cid))
                 existing_role=one(con,'SELECT role FROM memberships WHERE company_id=? AND user_id=?',(cid,uid))
                 if existing_role and existing_role['role']=='admin' and role!='admin':
                     admin_count=one(con,"SELECT COUNT(*) AS n FROM memberships WHERE company_id=? AND role='admin'",(cid,))['n']
@@ -805,7 +835,7 @@ def create_app(data_dir=None):
         user,co=current(request,'admin')
         await form(request)
         if member_id == user['id']:
-            raise HTTPException(403,'Du kannst deinen eigenen Zugang nicht umstellen.')
+            raise HTTPException(403,'Das eigene Benutzerkonto kann nicht umgestellt werden.')
         with transaction(db_path,True) as con:
             target=one(con,'''SELECT u.id,u.email,u.is_superadmin,u.active,u.can_create_company,m.role
                 FROM users u JOIN memberships m ON m.user_id=u.id
@@ -880,8 +910,17 @@ def create_app(data_dir=None):
                 count=one(con,"SELECT COUNT(*) AS n FROM memberships WHERE company_id=? AND role='admin'",(co['id'],))['n']
                 if count<=1:raise HTTPException(409,'Letzten Administrator nicht entfernen')
             con.execute('DELETE FROM memberships WHERE company_id=? AND user_id=?',(co['id'],member_id))
-            audit(con,co['id'],user['id'],'Teammitglied entfernt',str(member_id))
-        notify(request,'Benutzerzugriff fuer dieses Geschaeft entfernt')
+            still_assigned=one(con,'SELECT 1 FROM memberships WHERE user_id=?',(member_id,))
+            delete_account=not still_assigned and not target['is_superadmin']
+            if delete_account:
+                # Foreign keys keep invoice history and activity records; the
+                # activity.user_id foreign key becomes NULL on account deletion.
+                con.execute('DELETE FROM users WHERE id=? AND is_superadmin=0',(member_id,))
+            audit(con,co['id'],user['id'],
+                  'Benutzerkonto gelöscht' if delete_account else 'Geschäftszugriff entfernt',
+                  str(member_id))
+        notify(request,'Benutzerkonto gelöscht. Die E-Mail-Adresse kann erneut verwendet werden.'
+               if delete_account else 'Geschäftszugriff entfernt; Konto in weiteren Geschäften erhalten.')
         return redirect('/team')
 
     @app.post('/team/{member_id}/move')
@@ -946,8 +985,10 @@ def create_app(data_dir=None):
                 fresh=one(con,'SELECT password_hash FROM users WHERE id=?',(user['id'],))
                 if not check_password(old,fresh['password_hash']):
                     raise ValueError('Bisheriges Passwort ist nicht korrekt')
-                con.execute('UPDATE users SET password_hash=? WHERE id=?',
-                            (hash_password(new),user['id']))
+                login_nonce=secrets.token_hex(32)
+                con.execute('UPDATE users SET password_hash=?,session_nonce=? WHERE id=?',
+                            (hash_password(new),login_nonce,user['id']))
+                request.session['session_nonce']=login_nonce
                 audit(con,co['id'],user['id'],'Passwort geaendert','')
             notify(request,'Passwort wurde geaendert')
         except ValueError as exc:

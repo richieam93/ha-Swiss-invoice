@@ -2,15 +2,15 @@
 {% block title %}Eigenes Geschäft einrichten{% endblock %}
 {% block authcontent %}
 <div class="onboarding-box auth-box">
-  <div class="onboarding-top"><span class="eyebrow">WILLKOMMEN BEI SWISS-INVOICE-RX</span><span class="onboard-step-counter" id="onboard-progress">Schritt 1 von 4</span></div>
-  <h1>Dein eigenes Geschäft einrichten</h1>
-  <p>Du erhältst eine eigene, leere Geschäftsumgebung und richtest sie wie bei einer Erstinstallation ein. Danach hast du volle Rechte für dein Geschäft: Rechnungen, Kunden, Artikel, Vorlagen, QR-Code und Mitarbeiter. Bestehende Geschäfte bleiben für dich unsichtbar.</p>
+  <div class="onboarding-top"><span class="eyebrow">GESCHÄFTSEINRICHTUNG</span><span class="onboard-step-counter" id="onboard-progress">Schritt 1 von 4</span></div>
+  <h1>Eigenes Geschäft einrichten</h1>
+  <p>Die Einrichtung erstellt ein unabhängiges Geschäft mit vollständigen Verwaltungsrechten. Daten anderer Geschäfte bleiben getrennt.</p>
   <div class="onboard-progress-track" aria-hidden="true"><span id="onboard-progress-bar"></span></div>
   <form id="onboard-form" action="{{ ingress_prefix }}/onboarding" method="post" enctype="multipart/form-data">
     <input name="_csrf" type="hidden" value="{{ csrf }}">
     <section class="onboard-step" data-step="0">
       <h2>1. Welche Art von Geschäft?</h2>
-      <p class="small-help">Das kannst du jederzeit in den Firmeneinstellungen ändern.</p>
+      <p class="small-help">Die Geschäftsart bleibt später unter Firmendaten änderbar.</p>
       <div class="onboard-choices">
         <label><input type="radio" name="business_type" value="private" required><span><strong>Privatperson</strong><small>Für gelegentliche private Rechnungen – ohne MWST-Ausweis.</small></span></label>
         <label><input type="radio" name="business_type" value="sole"><span><strong>Einzelunternehmen / selbständig</strong><small>Für die Arbeit auf eigene Rechnung. MWST je nach Registrierung.</small></span></label>
@@ -33,30 +33,30 @@
     </section>
     <section class="onboard-step" data-step="2">
       <h2>3. Logo &amp; Zugang</h2>
-      <p class="small-help">Das Logo erscheint in deiner Oberfläche und auf Rechnungen. Du kannst es später austauschen.</p>
-      <div class="onboard-logo-box"><div class="onboard-logo-preview" id="onboard-logo-preview"><span>Dein Logo</span></div>
+      <p class="small-help">Das Geschäftslogo wird in der Oberfläche und auf Rechnungen verwendet und kann später geändert werden.</p>
+      <div class="onboard-logo-box"><div class="onboard-logo-preview" id="onboard-logo-preview"><span>Geschäftslogo</span></div>
         <div class="field"><label for="onboard-logo">Logo hochladen (optional)</label><input type="file" accept="image/png,image/jpeg,image/webp" name="app_logo" id="onboard-logo"><small>PNG, JPG oder WebP – max. 5 MB. Auch später unter Firmendaten möglich.</small></div></div>
       <div class="onboard-password-section">
-        <h3>Dein privates Passwort festlegen</h3>
-        <p class="small-help">Du hast ein Startpasswort erhalten. Wähle jetzt ein anderes, geheimes Passwort. So kann niemand mit dem bisherigen Startpasswort auf dein Geschäft zugreifen.</p>
+        <h3>Persönliches Passwort festlegen</h3>
+        <p class="small-help">Das Startpasswort wird durch ein neues persönliches Passwort ersetzt.</p>
         <div class="form-grid"><div class="field"><label>Neues Passwort *</label><input type="password" name="password_new" minlength="10" autocomplete="new-password" required placeholder="Mindestens 10 Zeichen"></div>
         <div class="field"><label>Neues Passwort bestätigen *</label><input type="password" name="password_confirm" minlength="10" autocomplete="new-password" required placeholder="Wiederholen"></div></div>
       </div>
     </section>
     <section class="onboard-step" data-step="3">
       <h2>4. Zahlungen &amp; MWST</h2>
-      <p class="small-help">Die Bankdaten sind optional. Ohne gültige IBAN ist noch kein QR-Zahlteil möglich – du kannst sie jederzeit nachtragen.</p>
+      <p class="small-help">Bankdaten sind optional und können später ergänzt werden. Für QR-Zahlteile ist eine gültige IBAN erforderlich.</p>
       <div class="form-grid">
         <div class="field span-2"><label>IBAN / QR-IBAN</label><input name="iban" placeholder="CH93 0076 2011 6238 5295 7" spellcheck="false"></div>
         <div class="field"><label>QR-Referenz</label><select name="qr_reference_type"><option value="AUTO">Automatisch (empfohlen)</option><option value="SCOR">SCOR – normale IBAN</option><option value="QRR">QRR – QR-IBAN</option><option value="NON">Ohne Referenz</option></select></div>
         <div class="field"><label>Währung</label><select name="currency"><option value="CHF">CHF</option><option value="EUR">EUR</option></select></div>
         <div class="field"><label>Zahlungsziel (Tage)</label><input type="number" name="default_due_days" value="30" min="0" max="365" step="1"></div>
       </div>
-      <div class="onboard-tax-box" id="onboard-tax-box"><label class="check"><input name="tax_registered" type="checkbox" id="onboard-tax" value="1"> Ich bin für die MWST registriert</label>
-        <p class="small-help" id="onboard-tax-note">Geschäftsart und MWST-Status sind unabhängig. Grundsätzlich gilt für Unternehmen eine Umsatzgrenze von CHF 100’000; freiwillige Registrierung ist möglich. Setze das Häkchen nur mit tatsächlicher Registrierung.</p>
+      <div class="onboard-tax-box" id="onboard-tax-box"><label class="check"><input name="tax_registered" type="checkbox" id="onboard-tax" value="1"> MWST-registriert</label>
+        <p class="small-help" id="onboard-tax-note">Geschäftsart und MWST-Status sind unabhängig. Grundsätzlich gilt für Unternehmen eine Umsatzgrenze von CHF 100’000; freiwillige Registrierung ist möglich. Nur bei tatsächlicher MWST-Registrierung aktivieren.</p>
         <div class="form-grid" id="onboard-tax-details" hidden><div class="field"><label>Standard-MWST (%)</label><select name="default_tax"><option value="8.1">8,1 % – Normalsatz</option><option value="2.6">2,6 % – reduziert</option><option value="3.8">3,8 % – Beherbergung</option></select></div><div class="field"><label>UID / MWST-Nummer</label><input name="uid" placeholder="CHE-123.456.789 MWST" maxlength="60"></div></div>
       </div>
-      <div class="info-box mt-3">Danach bist du <b>Geschäftsadministrator</b> deines eigenen Geschäfts. Logos, Rechnungsnummern, Vorlagen, MWST und Bank-/QR-Daten kannst du später jederzeit ändern. Gemeinsame systemweite Funktionen bleiben beim Installationsadministrator.</div>
+      <div class="info-box mt-3">Nach Abschluss bestehen <b>volle Verwaltungsrechte im eigenen Geschäft</b>. Geschäfts- und Zahlungseinstellungen bleiben änderbar. Installationsweite Funktionen verbleiben beim Hauptadministrator.</div>
     </section>
     <div class="onboard-actions"><button type="button" class="btn" id="onboard-back">← Zurück</button><button type="button" class="btn btn-primary" id="onboard-next">Weiter →</button><button type="submit" class="btn btn-primary" id="onboard-finish">Eigenes Geschäft erstellen ✓</button></div>
   </form>

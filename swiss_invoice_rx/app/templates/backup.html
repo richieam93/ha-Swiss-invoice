@@ -1,5 +1,5 @@
 {% extends 'base.html' %}{% block title %}Datensicherung{% endblock %}{% block content %}
-<div class="page-head"><div><span class="eyebrow">DEINE DATEN</span><h1>Sicherung &amp; Wiederherstellung</h1><p>Daten sicher lokal verwahren und regelmässig extern sichern.</p></div></div>
+<div class="page-head"><div><span class="eyebrow">DATENVERWALTUNG</span><h1>Sicherung &amp; Wiederherstellung</h1><p>Daten sicher lokal verwahren und regelmässig extern sichern.</p></div></div>
 <div class="twocol">
 <section class="card"><h2>Gesamtsicherung</h2>
 {% if user.is_superadmin %}
@@ -7,8 +7,8 @@
 <form action="{{ ingress_prefix }}/backup/download" method="post"><input type="hidden" name="_csrf" value="{{ csrf }}"><button class="btn btn-primary">↓ Gesamtbackup herunterladen</button></form>
 <div class="info-box mt-3">Achtung: Enthält alle Geschäfte und Passwort-Hashes. Das Backup vertraulich und verschlüsselt aufbewahren.</div>
 {% else %}
-<p>Du kannst dein Geschäft vollständig verwalten. Da die lokale SQLite-Datei aber <b>alle Geschäfte und Benutzerkonten</b> enthält, ist die installationsweite Sicherung aus Datenschutzgründen nur für den Hauptadministrator freigegeben.</p>
-<div class="info-box">Bitte den Hauptadministrator um eine verschlüsselte Datensicherung bitten. Zugriff auf andere Geschäfte erhältst du dadurch nicht.</div>
+<p>Die Gesamtsicherung enthält <b>alle Geschäfte und Benutzerkonten</b> und ist deshalb ausschliesslich für den Hauptadministrator verfügbar.</p>
+<div class="info-box">Verschlüsselte Gesamtsicherungen werden vom Hauptadministrator verwaltet.</div>
 {% endif %}
 </section>
 <section class="card"><h2>Wiederherstellung</h2><p class="small-help">Wiederherstellung der gesamten Installation erfolgt über die Home-Assistant-Sicherungsfunktion bei gestopptem Add-on. Für geschäftsübergreifende Wiederherstellung ist der Hauptadministrator zuständig.</p><div class="info-box">Regelmässig ein verschlüsseltes Backup extern aufbewahren. Die Software kann die gesetzlichen Archivierungsanforderungen nicht allein gewährleisten.</div></section>

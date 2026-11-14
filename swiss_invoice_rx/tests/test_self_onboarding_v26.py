@@ -291,7 +291,7 @@ class PreviousDBMigrationTest(unittest.TestCase):
                 con.execute('PRAGMA user_version=13')
             initialize(path)
             with db_connect(path) as con:
-                self.assertEqual(con.execute('PRAGMA user_version').fetchone()[0],14)
+                self.assertEqual(con.execute('PRAGMA user_version').fetchone()[0],15)
                 user=con.execute('SELECT * FROM users WHERE id=1').fetchone()
                 self.assertEqual(user['can_create_company'],0)
                 self.assertIsNone(user['restricted_company_id'])

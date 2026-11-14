@@ -23,7 +23,7 @@ def parse_profile(data, *, editing=False):
         raise ValueError('Private Gelegenheitsrechnungen ohne MWST ausstellen. Für steuerpflichtige Erwerbstätigkeit bitte Einzelunternehmen oder Firma wählen.')
     name = str(data.get('name', '')).strip()
     if not name or len(name) > 120:
-        raise ValueError('Bitte einen Namen für dein Geschäft (max. 120 Zeichen) angeben.')
+        raise ValueError('Geschäftsname erforderlich (maximal 120 Zeichen).')
     street = str(data.get('street', '')).strip()
     building = str(data.get('building', '')).strip()
     postal = str(data.get('zip', '')).strip()

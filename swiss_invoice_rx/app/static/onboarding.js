@@ -59,7 +59,7 @@
     if (logoUrl) URL.revokeObjectURL(logoUrl);
     logoUrl = null;
     const file = logoInput.files?.[0];
-    if (!file) { logoPreview.innerHTML = '<span>Dein Logo</span>'; return; }
+    if (!file) { logoPreview.innerHTML = '<span>Geschäftslogo</span>'; return; }
     if (file.size > 5 * 1024 * 1024) { window.alert('Maximal 5 MB erlaubt'); logoInput.value = ''; return; }
     logoUrl = URL.createObjectURL(file);
     const img = document.createElement('img');

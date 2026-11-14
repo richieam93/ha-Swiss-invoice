@@ -170,7 +170,7 @@ class PdfBrandingTests(unittest.TestCase):
         initialize(self.root/'rechnung.sqlite3')
         with db_connect(self.root/'rechnung.sqlite3') as con:
             self.assertEqual(con.execute('SELECT pdf_show_draft_mark FROM companies WHERE id=1').fetchone()[0],1)
-            self.assertEqual(con.execute('PRAGMA user_version').fetchone()[0],14)
+            self.assertEqual(con.execute('PRAGMA user_version').fetchone()[0],15)
 
 
 if __name__=='__main__':unittest.main()

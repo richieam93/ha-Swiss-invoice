@@ -24,7 +24,7 @@ class MigrationTests(unittest.TestCase):
                 self.assertEqual(con.execute('SELECT amount FROM payments WHERE id=1').fetchone()[0], '75.00')
                 self.assertEqual(con.execute('SELECT reversed_at FROM payments WHERE id=1').fetchone()[0], '')
                 self.assertEqual(con.execute('SELECT balance_at FROM reminders WHERE id=1').fetchone()[0], '')
-                self.assertEqual(con.execute('PRAGMA user_version').fetchone()[0],14)
+                self.assertEqual(con.execute('PRAGMA user_version').fetchone()[0],15)
             finally:con.close()
 
 if __name__ == '__main__':

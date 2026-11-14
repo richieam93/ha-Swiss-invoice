@@ -4,7 +4,7 @@
 <link rel="stylesheet" href="{{ ingress_prefix }}/static/designer.css">
 <div class="page-head">
  <div><span class="eyebrow">VORLAGEN-STUDIO / {{ settings.name }}</span><h1>Freier PDF-Designer</h1>
-  <p>Verschiebe und skaliere deine Rechnungsfelder direkt auf A4. Änderungen erscheinen im echten Rechnungs-PDF.</p></div>
+  <p>Rechnungsfelder auf A4 frei positionieren und skalieren. Das Layout wird für die PDF-Ausgabe übernommen.</p></div>
  <div class="page-actions"><a class="btn" href="{{ ingress_prefix }}/templates">&larr; Zur Vorlagenbibliothek</a></div>
 </div>
 <div class="designer-notice" role="note"><b>So funktioniert's:</b> Element anklicken, ziehen oder rechts millimetergenau einstellen. Unten rechts am Element die Grösse ändern. Mit <b>PDF-Muster ansehen</b> die echte Ausgabe prüfen. <b>Wichtig:</b> Positionstabelle, Total und Bemerkungen fliessen bei langen Rechnungen automatisch auf Folgeseiten weiter. Der standardisierte Swiss-QR-Zahlteil bleibt geschützt.</div>
@@ -41,7 +41,7 @@
 
   <aside class="designer-properties card" aria-label="Eigenschaften">
     <h2>Eigenschaften</h2>
-    <p class="small-help" id="designer-selection-hint">Wähle ein Element auf der Seite aus.</p>
+    <p class="small-help" id="designer-selection-hint">Element auf der Seite auswählen.</p>
     <div id="designer-property-fields" hidden>
       <div class="designer-prop-section"><span id="designer-selected-kind" class="designer-prop-kind"></span>
         <div class="designer-dim-grid">
@@ -70,7 +70,7 @@
 </div>
 <section class="card designer-save-card" aria-labelledby="designer-save-title">
  <div><h2 id="designer-save-title">Vorlage speichern und testen</h2>
-  <p class="small-help">Mit „Freies Layout aktivieren“ verwendest du dieses Design bei neuen PDF-Belegen. Ohne Aktivierung bleibt das bisherige klassische Design erhalten.</p></div>
+  <p class="small-help">„Freies Layout aktivieren“ übernimmt das Design für neue Belege. Ohne Aktivierung bleibt das bestehende Layout erhalten.</p></div>
  <form id="designer-save-form" method="post" action="{{ ingress_prefix }}/templates/designer/save">
    <input type="hidden" name="_csrf" value="{{ csrf }}" id="designer-csrf">
    <input type="hidden" name="designer_layout" id="designer-layout-json">

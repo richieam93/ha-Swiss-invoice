@@ -7,7 +7,7 @@
   <div class="page-actions"><a class="btn" href="{{ ingress_prefix }}{{ '/invoices/'~invoice.id if editing else '/invoices?kind='~invoice.kind }}">&larr; Zur&uuml;ck</a><a class="btn btn-secondary" href="{{ ingress_prefix }}/templates">Vorlage ansehen</a></div>
 </div>
 <div class="editor-steps" aria-label="Ablauf"><span class="step-now">1 &nbsp; Entwurf bearbeiten</span><span>2 &nbsp; PDF pr&uuml;fen</span><span>3 &nbsp; Freigeben &amp; archivieren</span></div>
-{% if error_inline %}<div class="notice error" role="alert"><strong>Entwurf nicht gespeichert:</strong> {{ error_inline }}. Deine Eingaben sind erhalten geblieben.</div>{% endif %}
+{% if error_inline %}<div class="notice error" role="alert"><strong>Entwurf nicht gespeichert:</strong> {{ error_inline }}. Eingaben bleiben erhalten.</div>{% endif %}
 <form id="invoice-form" action="{{ ingress_prefix }}/invoices/save" method="post" data-kind="{{ invoice.kind }}" data-company-id="{{ active_company.id }}" data-items="{{ items|tojson|forceescape }}" data-customers="{{ customers|tojson|forceescape }}" data-company="{{ active_company.name|e }}" data-editing="{{ 1 if editing else 0 }}" data-tax-registered="{{ 1 if active_company.tax_registered else 0 }}" data-default-tax="{{ active_company.default_tax }}" data-default-due="{{ active_company.default_due_days }}" data-has-iban="{{ 1 if active_company.iban else 0 }}" data-company-address="{{ 1 if active_company.zip and active_company.city and active_company.country else 0 }}">
 <input type="hidden" name="_csrf" value="{{ csrf }}"><input type="hidden" name="id" value="{{ invoice.id or '' }}"><input type="hidden" name="kind" value="{{ invoice.kind }}">
 <section class="card form-section">
@@ -33,13 +33,13 @@
     <div class="field"><label>E-Mail</label><input name="new_customer_email" type="email" value="{{ invoice.new_customer_email or '' }}"></div>
     <div class="field span-2"><label>Strasse</label><input name="new_customer_street" value="{{ invoice.new_customer_street or '' }}"></div><div class="field"><label>Hausnummer</label><input name="new_customer_building" value="{{ invoice.new_customer_building or '' }}"></div>
     <div class="field"><label>PLZ</label><input name="new_customer_zip" value="{{ invoice.new_customer_zip or '' }}"></div><div class="field"><label>Ort</label><input name="new_customer_city" value="{{ invoice.new_customer_city or '' }}"></div><div class="field"><label>Land (2 Buchstaben)</label><input name="new_customer_country" maxlength="2" value="{{ invoice.new_customer_country or 'CH' }}"></div><div class="field"><label>Zahlungsziel des neuen Kunden (Tage)</label><input name="new_customer_payment_days" type="number" min="0" max="365" value="{{ invoice.new_customer_payment_days or 0 }}"><small>0 = Firmenstandard</small></div></div>
-    <p class="small-help mt-2">Du musst dann oben keinen bestehenden Kunden w&auml;hlen. Die neue Kundenkarte wird beim Speichern angelegt.</p>
+    <p class="small-help mt-2">Ein bestehender Kunde muss nicht ausgewählt werden. Der neue Kunde wird beim Speichern angelegt.</p>
   </div>
   <div class="editor-hint mt-3" id="qr-ready" role="status"><span class="status-dot"></span><span>QR-Zahlteil wird bei der PDF-Erstellung gepr&uuml;ft.</span>{% if active_company.role=="admin" %}<a href="{{ ingress_prefix }}/qr-test" target="_blank" rel="noopener">QR-Einstellungen testen</a>{% else %}<span>QR-Daten durch Administrator pruefen lassen</span>{% endif %}</div>
 </section>
 <section class="card form-section hi-lines-section" id="invoice-lines-section">
   <div class="section-title hi-lines-title">
-    <div><h2>02 / Rechnungspositionen</h2><p class="small-help">Beschreibung, Menge und Preis gen&uuml;gen. MWST und Rabatt kannst du bei Bedarf pro Position &auml;ndern.</p></div>
+    <div><h2>02 / Rechnungspositionen</h2><p class="small-help">Beschreibung, Menge und Preis gen&uuml;gen. MWST und Rabatt sind pro Position einstellbar.</p></div>
     <button type="button" class="btn btn-sm btn-primary" id="add-row">+ Position hinzuf&uuml;gen</button>
   </div>
   <div class="hi-line-quickadd" id="product-quick-add">
@@ -118,7 +118,7 @@
 <div id="editor-feedback" class="small-help" role="status" aria-live="polite"></div>
 <div class="form-actions editor-bottom-actions"><span class="small-help">Tipp: <kbd>Ctrl</kbd> + <kbd>S</kbd> speichert, <kbd>Ctrl</kbd> + <kbd>Enter</kbd> zeigt die PDF-Vorschau.</span><a class="btn" href="{{ ingress_prefix }}{{ '/invoices/'~invoice.id if editing else '/invoices?kind='~invoice.kind }}">Abbrechen</a><button type="submit" class="btn btn-secondary" id="preview-invoice-pdf" formaction="{{ ingress_prefix }}/invoices/preview.pdf" formtarget="_blank">PDF-Vorschau ohne Speichern</button><button type="submit" class="btn btn-primary" id="save-invoice">Entwurf speichern &rarr;</button></div>
 </form>
-<div class="info-box mt-3"><b>Gut zu wissen:</b> Nach dem Speichern kannst du das echte PDF ansehen. Erst mit <b>Freigeben</b> wird der Beleg unver&auml;nderbar archiviert. Nummern kannst du im Entwurf &auml;ndern; bereits verwendete Nummern werden blockiert.</div>
+<div class="info-box mt-3"><b>Gut zu wissen:</b> Nach dem Speichern ist die PDF-Vorschau verfügbar. Erst <b>Freigeben</b> archiviert den Beleg unveränderbar. Entwurfsnummern sind bearbeitbar; Doppelvergaben werden verhindert.</div>
 <script src="{{ ingress_prefix }}/static/bulk_lines.js" defer></script>
 <script src="{{ ingress_prefix }}/static/editor.js" defer></script>
 {% endblock %}

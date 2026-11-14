@@ -36,7 +36,7 @@ class ConfigTests(unittest.TestCase):
         self.assertIn('richieam93/ha-Swiss-invoice', repo['url'])
         self.assertEqual(cfg['slug'], HERE.name)
         self.assertEqual(cfg['name'], 'Swiss-invoice-RX')
-        self.assertEqual(cfg['version'], '2.9.0')
+        self.assertEqual(cfg['version'], '2.9.2')
         self.assertTrue(cfg['ingress'])
         self.assertEqual(cfg['ingress_port'], 8765)
         self.assertFalse(cfg['panel_admin'])

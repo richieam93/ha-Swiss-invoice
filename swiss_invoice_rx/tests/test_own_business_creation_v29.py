@@ -110,7 +110,7 @@ class OwnBusinessBrowserFlow(unittest.TestCase):
             self.assertEqual(u['can_create_company'],1)
             self.assertEqual(con.execute('SELECT COUNT(*) FROM memberships WHERE user_id=?',(u['id'],)).fetchone()[0],0)
         self.assertEqual(self.login_invited().headers['location'],'/onboarding')
-        self.assertIn('Dein eigenes Geschäft einrichten', self.invitee.get('/onboarding').text)
+        self.assertIn('Eigenes Geschäft einrichten', self.invitee.get('/onboarding').text)
         self.assertNotIn('Stammgeschäft Nord', self.invitee.get('/onboarding').text)
         for path in ('/dashboard','/customers','/invoices','/team','/templates','/systemcheck','/backup'):
             response=self.invitee.get(path)

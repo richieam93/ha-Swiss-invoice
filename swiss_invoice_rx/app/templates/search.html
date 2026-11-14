@@ -2,7 +2,7 @@
 <div class="page-head"><div><span class="eyebrow">SCHNELL FINDEN</span><h1>Suche im Geschäft.</h1><p>Rechnungen, Offerten, Kunden und Artikel gemeinsam durchsuchen. Nur Daten des aktiven Geschäfts.</p></div><div class="page-actions"><button type="button" class="btn" data-open-global-search>⌕ Schnellfenster öffnen <kbd>Strg K</kbd></button></div></div>
 <section class="card search-main">
 <form action="{{ ingress_prefix }}/search" method="get" class="searchbar"><label for="all-search" class="sr-only">Suchbegriff</label><input id="all-search" name="q" type="search" maxlength="80" value="{{ q }}" autofocus placeholder="Rechnungsnummer, Kunde, Artikelnummer, Projekt ..."><button class="btn btn-primary">Suchen</button></form>
-{% if q|length < 2 %}<div class="search-empty"><strong>Was suchst du?</strong><p>Gib mindestens 2 Zeichen ein. Tipp: Mit <kbd>Strg + K</kbd> kannst du die Suche von jeder Seite öffnen.</p></div>
+{% if q|length < 2 %}<div class="search-empty"><strong>Geschäftsweite Suche</strong><p>Mindestens zwei Zeichen eingeben. <kbd>Strg + K</kbd> öffnet die Suche von jeder Seite.</p></div>
 {% else %}
 <p class="small-help">{{ total_hits }} Treffer angezeigt{% if total_hits>=90 %} (maximal 30 pro Bereich){% endif %} für <strong>{{ q }}</strong>.</p>
 {% for key,heading,icon in [('invoices','Rechnungen & Belege','▤'),('customers','Kunden','♙'),('items','Artikel & Dienstleistungen','▣')] %}

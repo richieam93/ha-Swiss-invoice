@@ -255,7 +255,7 @@ class BrandingTests(unittest.TestCase):
         initialize(path)
         with db_connect(path) as con:
             self.assertIn('app_logo_path',{x['name'] for x in con.execute('PRAGMA table_info(companies)')})
-            self.assertEqual(con.execute('PRAGMA user_version').fetchone()[0],14)
+            self.assertEqual(con.execute('PRAGMA user_version').fetchone()[0],15)
             self.assertEqual(con.execute('SELECT name FROM companies WHERE id=1').fetchone()['name'],'Geschäft A')
 
 if __name__ == '__main__':
