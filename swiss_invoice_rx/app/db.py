@@ -9,6 +9,8 @@ CREATE TABLE IF NOT EXISTS users (
  id INTEGER PRIMARY KEY, email TEXT NOT NULL UNIQUE COLLATE NOCASE,
  password_hash TEXT NOT NULL, full_name TEXT NOT NULL,
  restricted_company_id INTEGER DEFAULT NULL,
+ can_create_company INTEGER NOT NULL DEFAULT 0,
+ invited_from_company_id INTEGER DEFAULT NULL,
  is_superadmin INTEGER NOT NULL DEFAULT 0, active INTEGER NOT NULL DEFAULT 1,
  failed_logins INTEGER NOT NULL DEFAULT 0, locked_until TEXT DEFAULT '',
  created_at TEXT DEFAULT CURRENT_TIMESTAMP
@@ -18,9 +20,11 @@ CREATE TABLE IF NOT EXISTS companies (
  building TEXT NOT NULL DEFAULT '', zip TEXT NOT NULL DEFAULT '', city TEXT NOT NULL DEFAULT '',
  country TEXT NOT NULL DEFAULT 'CH', email TEXT NOT NULL DEFAULT '', phone TEXT NOT NULL DEFAULT '',
  uid TEXT NOT NULL DEFAULT '', iban TEXT NOT NULL DEFAULT '', currency TEXT NOT NULL DEFAULT 'CHF',
+ business_type TEXT NOT NULL DEFAULT 'company',
  tax_registered INTEGER NOT NULL DEFAULT 0, default_tax TEXT NOT NULL DEFAULT '0',
  color TEXT NOT NULL DEFAULT '#2563eb', logo_path TEXT NOT NULL DEFAULT '',
  app_logo_path TEXT NOT NULL DEFAULT '',
+ pdf_show_draft_mark INTEGER NOT NULL DEFAULT 1,
  footer_text TEXT NOT NULL DEFAULT 'Vielen Dank fuer Ihren Auftrag.',
  payment_terms TEXT NOT NULL DEFAULT 'Zahlbar innert {days} Tagen.',
  default_due_days INTEGER NOT NULL DEFAULT 30, number_prefix TEXT NOT NULL DEFAULT 'RE',
@@ -174,11 +178,14 @@ def initialize(path):
         con.executescript(SCHEMA)
         # SQLite erweitert vorhandene Installationen additiv, ohne Belege zu loeschen.
         extra_columns = {
-            'users': {'restricted_company_id': 'INTEGER DEFAULT NULL'},
+            'users': {'restricted_company_id': 'INTEGER DEFAULT NULL',
+                      'can_create_company': 'INTEGER NOT NULL DEFAULT 0',
+                      'invited_from_company_id': 'INTEGER DEFAULT NULL'},
             'customers': {'payment_days': 'INTEGER NOT NULL DEFAULT 0'},
             'items': {'reorder_point': "TEXT NOT NULL DEFAULT '5'"},
             'invoices': { 'subject': "TEXT NOT NULL DEFAULT ''" },
             'companies': {
+                'business_type': "TEXT NOT NULL DEFAULT 'company'",
                 'quote_prefix': "TEXT NOT NULL DEFAULT 'OF'",
                 'credit_prefix': "TEXT NOT NULL DEFAULT 'GS'",
                 'number_padding': 'INTEGER NOT NULL DEFAULT 5',
@@ -199,6 +206,7 @@ def initialize(path):
                 'designer_enabled': 'INTEGER NOT NULL DEFAULT 0',
                 'designer_layout': "TEXT NOT NULL DEFAULT ''",
                 'app_logo_path': "TEXT NOT NULL DEFAULT ''",
+                'pdf_show_draft_mark': 'INTEGER NOT NULL DEFAULT 1',
             },
             'payments': {
                 'reversed_at': "TEXT NOT NULL DEFAULT ''",
@@ -216,7 +224,7 @@ def initialize(path):
             for field, declaration in columns.items():
                 if field not in existing:
                     con.execute(f'ALTER TABLE {table} ADD COLUMN {field} {declaration}')
-        con.execute('PRAGMA user_version=12')
+        con.execute('PRAGMA user_version=14')
         con.execute('PRAGMA journal_mode=WAL')
         con.commit()
     finally:

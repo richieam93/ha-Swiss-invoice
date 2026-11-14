@@ -26,7 +26,7 @@ if [ "$RESTORE" = 'yes' ]; then
     if [ -f /data/rechnung.sqlite3 ]; then
         echo "[Swiss-invoice-RX] Bestehende Datenbank erkannt; Backup-Import uebersprungen."
     else
-        echo "[Swiss-invoice-RX] Import des Windows-Backups aus /share/swiss-invoice-rx/import.zip ..."
+        echo "[Swiss-invoice-RX] Import der bestehenden Sicherung aus /share/swiss-invoice-rx/import.zip ..."
         python import_backup.py /share/swiss-invoice-rx/import.zip /data
     fi
 fi

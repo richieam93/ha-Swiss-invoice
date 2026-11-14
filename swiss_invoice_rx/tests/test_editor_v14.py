@@ -152,5 +152,5 @@ class Migration14Tests(unittest.TestCase):
             con=db_connect(path)
             try:
                 self.assertEqual([tuple(row) for row in con.execute('SELECT number,subject FROM invoices')],[('ALT-200','')])
-                self.assertEqual(con.execute('PRAGMA user_version').fetchone()[0],12)
+                self.assertEqual(con.execute('PRAGMA user_version').fetchone()[0],14)
             finally:con.close()

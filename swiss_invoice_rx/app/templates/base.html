@@ -2,9 +2,9 @@
 <html lang="de-CH"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>{% block title %}Swiss-invoice-RX{% endblock %} · Swiss-invoice-RX</title>
 <meta name="swiss-invoice-base" content="{{ ingress_prefix }}">
-<link rel="stylesheet" href="{{ ingress_prefix }}/static/app.css"></head>
+<link rel="stylesheet" href="{{ ingress_prefix }}/static/app.css"><link rel="stylesheet" href="{{ ingress_prefix }}/static/onboarding.css"></head>
 <body class="{% if not user %}auth-page{% endif %}">
-{% if user %}
+{% if user and active_company %}
 <div class="shell">
 {% set nav_path = request.url.path %}
 <aside class="sidebar" id="main-sidebar" aria-label="Hauptnavigation" data-user-id="{{ user.id }}" data-document-kind="{{ invoice.kind if invoice is defined and invoice else '' }}">
@@ -83,12 +83,12 @@
 <main class="content">
 {% if flash %}<div class="notice {{ flash[0] }}">{{ flash[1] }}</div>{% endif %}
 {% block content %}{% endblock %}
-</main><footer class="app-footer">Swiss-invoice-RX 2.4 · Lokale Rechnungsverwaltung · Schweiz</footer></div>
+</main><footer class="app-footer">Swiss-invoice-RX 2.6 · Lokale Rechnungsverwaltung · Schweiz</footer></div>
 </div>
 {% else %}
 <div class="auth-layout"><div class="auth-visual auth-visual-image">{% if site_login_logo %}<img src="{{ ingress_prefix }}/media/login-logo" alt="Swiss-invoice-RX Anmeldelogo" class="auth-site-logo">{% else %}<div class="auth-wordmark">Swiss-invoice<span> RX</span></div>{% endif %}<div class="auth-visual-badge">Schweizer Rechnungen · lokal &amp; sicher</div></div><div class="auth-panel">{% if site_login_logo %}<img src="{{ ingress_prefix }}/media/login-logo" alt="Swiss-invoice-RX Anmeldelogo" class="auth-mobile-logo">{% endif %}{% if flash %}<div class="notice {{ flash[0] }}">{{ flash[1] }}</div>{% endif %}{% block authcontent %}{% endblock %}</div></div>
 {% endif %}
-{% if user %}
+{% if user and active_company %}
 <dialog id="global-search-dialog" class="quick-search-dialog" aria-label="Globale Suche">
  <div class="quick-search-top"><strong>⌕ Alles durchsuchen</strong><button class="quick-search-close" type="button" data-close-global-search aria-label="Suche schliessen">×</button></div>
  <form action="{{ ingress_prefix }}/search" method="get" id="quick-search-form"><label for="quick-search-input" class="sr-only">Suche</label><input type="search" id="quick-search-input" name="q" maxlength="80" autocomplete="off" placeholder="Rechnung, Kunde, Artikel oder Projekt ..."></form>

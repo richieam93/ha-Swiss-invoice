@@ -1,6 +1,7 @@
-"""Separate application and login logos, safely stored in the add-on data volume.
+"""Tenant-specific logos in the persistent Home Assistant data volume.
 
-Invoice/PDF logos are deliberately not touched.
+PDF rendering prefers a dedicated invoice logo and uses the business app logo
+when no invoice logo is configured. The public login logo remains separate.
 """
 from pathlib import Path
 from uuid import uuid4
@@ -82,6 +83,35 @@ def company_logo_path(root, company):
         if not relative:
             continue
         path = (Path(root) / relative).resolve()
+        if path.is_relative_to(base) and path.is_file() and path.suffix.lower() in ('.png', '.jpg', '.jpeg'):
+            return path
+    return None
+
+
+def document_logo_path(root, company):
+    """Resolve the invoice logo, falling back to this business's application logo.
+
+    Paths from company records must stay in that company's uploads directory.
+    No image from another tenant, absolute path or symlink is served.
+    """
+    if not company:
+        return None
+    try:
+        cid = int(company['id'])
+    except (KeyError, TypeError, ValueError):
+        return None
+    base = (Path(root) / 'uploads' / str(cid)).resolve()
+    for field in ('logo_path', 'app_logo_path'):
+        relative = company.get(field, '')
+        if not relative or not isinstance(relative, str):
+            continue
+        relative_path = Path(relative)
+        if relative_path.is_absolute():
+            continue
+        original = Path(root) / relative_path
+        if original.is_symlink():
+            continue
+        path = original.resolve()
         if path.is_relative_to(base) and path.is_file() and path.suffix.lower() in ('.png', '.jpg', '.jpeg'):
             return path
     return None

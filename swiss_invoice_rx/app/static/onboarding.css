@@ -1,0 +1,41 @@
+/* Isolated invitation wizard: no changes to existing invoices or designers. */
+.onboarding-box{max-width:600px;width:100%;padding:12px 0}
+.onboarding-top{display:flex;justify-content:space-between;align-items:center;gap:14px}
+.onboarding-box h1{font-size:clamp(25px,3vw,34px);letter-spacing:-.9px;margin:13px 0 8px}
+.onboarding-box h2{font-size:17px;letter-spacing:-.3px;color:#152b47;margin:22px 0 10px}
+.onboarding-box>p{margin-bottom:14px}
+.onboard-step-counter{font-size:11px;font-weight:750;color:#4167aa;white-space:nowrap}
+.onboard-progress-track{height:5px;background:#e6efff;overflow:hidden;border-radius:8px;margin:19px 0 12px}
+.onboard-progress-track span{display:block;background:#386bf4;height:100%;width:25%;transition:width .2s ease}
+.onboard-step[hidden],.onboard-actions [hidden],#onboard-tax-details[hidden]{display:none!important}
+.onboard-choices{display:grid;grid-template-columns:1fr;gap:10px;margin:18px 0 8px}
+.onboard-choices label{display:flex;align-items:center;gap:12px;border:1px solid #d6e1f2;border-radius:12px;padding:15px 14px;cursor:pointer;background:#fff;transition:background .15s,border-color .15s}
+.onboard-choices label:hover{background:#f5f9ff;border-color:#8fb0f5}
+.onboard-choices label:has(input:checked){background:#edf4ff;border-color:#3b73e6;box-shadow:0 0 0 2px #3b73e61c}
+.onboard-choices input{width:18px;height:18px;accent-color:#285ce0;flex:0 0 auto}
+.onboard-choices strong,.onboard-choices small{display:block}
+.onboard-choices strong{font-size:13px;color:#1d3558}
+.onboard-choices small{font-size:11px;color:#73829a;line-height:1.55;margin-top:4px}
+.onboard-logo-box{background:#f4f8ff;border:1px solid #dce8fc;border-radius:13px;padding:20px;display:grid;gap:20px;grid-template-columns:120px minmax(0,1fr);align-items:center}
+.onboard-logo-preview{height:115px;border:1px dashed #a7bddc;border-radius:14px;display:flex;align-items:center;justify-content:center;background:#fff;overflow:hidden}
+.onboard-logo-preview span{font-size:12px;color:#8b9bb0}
+.onboard-logo-preview img{width:100%;height:100%;object-fit:contain;padding:9px}
+.onboard-tax-box{margin-top:18px;border:1px solid #d7e3f5;border-radius:12px;padding:15px;background:#f8faff}
+.onboard-tax-box.is-private{background:#f2f4f7}
+.onboard-tax-box .small-help{margin:9px 0 0}
+.onboard-tax-box .form-grid{margin-top:18px}
+.onboard-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:25px}
+.onboard-actions .btn{min-width:110px}
+.onboard-logout{text-align:center!important;margin-top:16px!important}
+.onboard-logout .logout-btn{color:#687d9e;border:0;background:none;cursor:pointer;text-decoration:underline;font-size:12px}
+.own-company-option{margin:12px 0 20px}
+.own-company-check{display:flex;gap:12px;align-items:start;padding:17px;border:1px solid #aec6ef;background:#f1f7ff;border-radius:12px;cursor:pointer}
+.own-company-check input{flex:0 0 auto;width:19px;height:19px;margin-top:2px;accent-color:#2563eb}
+.own-company-check strong,.own-company-check small{display:block}
+.own-company-check strong{font-size:14px;color:#1d4a87}
+.own-company-check small{margin-top:5px;font-size:12px;line-height:1.6;color:#587195}
+#team-assign-fields[hidden]{display:none!important}
+@media(max-width:870px){.onboarding-box{max-width:630px}.auth-panel{padding:22px}}
+@media(max-width:510px){.onboard-logo-box{grid-template-columns:1fr}.onboard-logo-preview{height:125px;max-width:190px}.onboard-actions .btn{min-width:0;flex:1}.onboard-step .form-grid{grid-template-columns:1fr}.onboarding-box{padding:0}}
+
+.onboard-password-section{margin-top:23px;padding-top:15px;border-top:1px solid #e2e8f2}.onboard-password-section h3{font-size:14px;margin:0 0 8px;color:#1d3558}

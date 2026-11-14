@@ -7,6 +7,8 @@ from .billing import dec
 def company_checks(company):
     items=[]
     def add(level,title,text):items.append({'level':level,'title':title,'text':text})
+    if company.get('tax_registered') and not str(company.get('uid') or '').strip():
+        add('warn','MWST-Nummer fehlt','Bei MWST-pflichtigen Unternehmen gehört die gültige UID mit Zusatz MWST auf die Rechnung. Bitte in Firmendaten ergänzen.')
     iban=str(company.get('iban') or '').strip()
     reference=str(company.get('qr_reference_type') or 'AUTO').upper()
     if not iban:

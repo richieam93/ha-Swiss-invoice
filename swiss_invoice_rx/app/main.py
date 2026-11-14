@@ -26,6 +26,7 @@ from starlette.datastructures import UploadFile
 from starlette.middleware.sessions import SessionMiddleware
 
 from .db import initialize, transaction, one, allrows, audit, db_connect
+from .business_profile import BUSINESS_TYPES, parse_profile
 from .billing import (dec, cents, money, num, percent, hash_password, check_password,
                       future, valid_date, safe_color, invoice_status)
 from .billing import summarize
@@ -42,7 +43,7 @@ from .designer import parse_layout, dumps_layout, default_layout
 from .search import search_all
 from .system_check import check_installation
 from .branding import (uploaded_logo, save_company_logo, save_site_logo,
-                       site_logo_path, company_logo_path)
+                       site_logo_path, company_logo_path, document_logo_path)
 
 HERE = Path(__file__).resolve().parent
 DEFAULT_DIR = HERE.parent / 'storage'
@@ -143,6 +144,8 @@ def create_app(data_dir=None):
         with transaction(db_path) as con:
             memberships = permitted_companies(con,user)
             if not memberships:
+                if user.get('can_create_company'):
+                    raise HTTPException(303, headers={'Location': '/onboarding'})
                 raise HTTPException(403, 'Kein Unternehmen zugeordnet')
             company = next((x for x in memberships if x['id'] == cid), memberships[0])
             if cid != company['id']:
@@ -167,6 +170,7 @@ def create_app(data_dir=None):
             'user':user, 'company_menu':memberships, 'active_company':selected_company,
             'csrf':request.session['csrf'], 'flash':request.session.pop('flash', None),
             'company_app_logo':bool(company_logo_path(root, selected_company)),
+            'document_logo_available':bool(document_logo_path(root, selected_company)),
             'site_login_logo':bool(site_logo_path(root)),
             'ingress_prefix':getattr(request.state, 'ingress_prefix', ''),
             'today':date.today().isoformat(), 'year':date.today().year, **context
@@ -375,8 +379,8 @@ def create_app(data_dir=None):
         c = dict(company)
         if inv.get('company_snapshot') and inv['company_snapshot'] != '{}':
             c=json.loads(inv['company_snapshot'])
-        if c.get('logo_path'):
-            c['logo_path'] = str(root / c['logo_path'])
+        logo = document_logo_path(root, c)
+        c['logo_path'] = str(logo) if logo else ''
         c['designer_asset_root'] = str(root/'uploads'/'designs'/str(cid))
         if inv.get('customer_snapshot') and inv['customer_snapshot'] != '{}':
             cust=json.loads(inv['customer_snapshot'])
@@ -435,8 +439,13 @@ def create_app(data_dir=None):
             exists=one(con,'SELECT id FROM users LIMIT 1')
         if not exists:
             return redirect('/setup')
-        if not active_user(request):
+        user = active_user(request)
+        if not user:
             return redirect('/login')
+        if user['can_create_company']:
+            with transaction(db_path) as con:
+                if not permitted_companies(con, user):
+                    return redirect('/onboarding')
         return redirect('/dashboard')
 
     @app.get('/setup')
@@ -476,7 +485,11 @@ def create_app(data_dir=None):
 
     @app.get('/login')
     async def login_page(request:Request):
-        if active_user(request):
+        user=active_user(request)
+        if user:
+            with transaction(db_path) as con:
+                if user['can_create_company'] and not permitted_companies(con,user):
+                    return redirect('/onboarding')
             return redirect('/dashboard')
         return view(request,'login.html')
 
@@ -499,12 +512,80 @@ def create_app(data_dir=None):
             m=one(con,'''SELECT company_id FROM memberships WHERE user_id=?
                 AND (? IS NULL OR company_id=?) ORDER BY company_id LIMIT 1''',
                 (u['id'],u['restricted_company_id'],u['restricted_company_id']))
-            if not m:
+            if not m and not u['can_create_company']:
                 notify(request,'Keinem Unternehmen zugeordnet.','error')
                 return redirect('/login')
         request.session.clear()
-        request.session.update({'uid':u['id'],'cid':m['company_id'],'csrf':secrets.token_hex(24)})
+        request.session.update({'uid':u['id'],'csrf':secrets.token_hex(24)})
+        if not m:
+            return redirect('/onboarding')
+        request.session['cid']=m['company_id']
         return redirect('/dashboard')
+
+    @app.get('/onboarding')
+    async def onboarding(request:Request):
+        """Private company creation only for an authenticated, unassigned invitee."""
+        user=active_user(request)
+        if not user:
+            return redirect('/login')
+        with transaction(db_path) as con:
+            if permitted_companies(con,user):
+                return redirect('/dashboard')
+        if not user['can_create_company']:
+            raise HTTPException(403,'Kein Einrichtungsrecht. Bitte den Administrator kontaktieren.')
+        return view(request,'onboarding.html',business_types=BUSINESS_TYPES,
+                    new_business_email=user['email'])
+
+    @app.post('/onboarding')
+    async def onboarding_save(request:Request):
+        user=active_user(request)
+        if not user:
+            return redirect('/login')
+        data=await form(request)
+        with transaction(db_path) as con:
+            if not user['can_create_company'] or one(con,'SELECT 1 FROM memberships WHERE user_id=?',(user['id'],)):
+                raise HTTPException(403,'Du hast bereits ein Geschäft oder keine Freigabe zur Einrichtung.')
+        image_path=None
+        try:
+            profile=parse_profile(data)
+            password_new=str(data.get('password_new',''))
+            if password_new != str(data.get('password_confirm','')):
+                raise ValueError('Die neuen Passwörter stimmen nicht überein.')
+            password_hash=hash_password(password_new)
+            logo_bytes=uploaded_logo(data.get('app_logo'))
+            due=int(data.get('default_due_days',30))
+            if due<0 or due>365:
+                raise ValueError('Zahlungsziel muss zwischen 0 und 365 Tagen liegen.')
+            # No existing tenant membership is inherited from the invitation.
+            with transaction(db_path,True) as con:
+                fresh=one(con,'SELECT * FROM users WHERE id=? AND active=1',(user['id'],))
+                if not fresh or not fresh['can_create_company']:
+                    raise HTTPException(403,'Einrichtung nicht freigegeben')
+                if one(con,'SELECT 1 FROM memberships WHERE user_id=?',(user['id'],)):
+                    raise HTTPException(409,'Benutzer hat bereits ein Geschäft')
+                if check_password(password_new,fresh['password_hash']):
+                    raise ValueError('Bitte ein eigenes, neues Passwort statt des Startpassworts wählen.')
+                cols=tuple(profile)+('default_due_days',)
+                values=list(profile.values())+[due]
+                placeholders=','.join('?' for _ in cols)
+                con.execute('INSERT INTO companies('+','.join(cols)+') VALUES('+placeholders+')',values)
+                cid=con.execute('SELECT last_insert_rowid()').fetchone()[0]
+                if logo_bytes is not None:
+                    image_path=save_company_logo(root,cid,logo_bytes)
+                    con.execute('UPDATE companies SET app_logo_path=? WHERE id=?',(image_path,cid))
+                con.execute("INSERT INTO memberships(company_id,user_id,role) VALUES(?,?,'admin')",(cid,user['id']))
+                con.execute('UPDATE users SET can_create_company=0, restricted_company_id=?, password_hash=? WHERE id=?',(cid,password_hash,user['id']))
+                audit(con,cid,user['id'],'Eigenes Geschäft eingerichtet',profile['name']+' / '+profile['business_type'])
+            request.session['cid']=cid
+            notify(request,'Dein eigenes Geschäft ist eingerichtet. Einstellungen und QR-Code kannst du jederzeit ändern.')
+            return redirect('/dashboard')
+        except HTTPException:
+            raise
+        except (ValueError,sqlite3.IntegrityError) as exc:
+            if image_path:
+                (root/image_path).unlink(missing_ok=True)
+            notify(request,str(exc),'error')
+            return redirect('/onboarding')
 
     @app.post('/logout')
     async def logout(request:Request):
@@ -626,7 +707,9 @@ def create_app(data_dir=None):
                 u.restricted_company_id,u.is_superadmin,m.role
                 FROM memberships m JOIN users u ON u.id=m.user_id WHERE m.company_id=? ORDER BY u.full_name''',(co['id'],))]
             businesses=admin_companies(con,user)
-        return view(request,'team.html',members=members,businesses=businesses)
+            pending=[dict(x) for x in allrows(con,'''SELECT id,email,full_name,created_at FROM users
+                WHERE can_create_company=1 AND active=1 AND invited_from_company_id=? ORDER BY id DESC''',(co['id'],))]
+        return view(request,'team.html',members=members,businesses=businesses,pending=pending)
 
     @app.post('/team')
     async def save_member(request:Request):
@@ -635,6 +718,22 @@ def create_app(data_dir=None):
         email=str(data.get('email','')).strip().lower()
         name=str(data.get('full_name','')).strip()
         role=str(data.get('role','viewer'))
+        if data.get('create_own_company')=='1':
+            if '@' not in email or len(email)>254:
+                raise HTTPException(400,'Bitte eine gültige E-Mail-Adresse angeben')
+            try:
+                password=str(data.get('password',''))
+                hashed=hash_password(password)
+                with transaction(db_path,True) as con:
+                    if one(con,'SELECT id FROM users WHERE email=?',(email,)):
+                        raise ValueError('Diese E-Mail-Adresse ist bereits vergeben. Für eine eigene Einrichtung einen neuen Benutzer anlegen.')
+                    con.execute('''INSERT INTO users(email,full_name,password_hash,can_create_company,invited_from_company_id)
+                        VALUES(?,?,?,1,?)''',(email,name or email,hashed,co['id']))
+                    audit(con,co['id'],user['id'],'Eigene Einrichtung eingeladen',email)
+                notify(request,'Benutzer erstellt. Er hat keinen Zugriff auf dein Geschäft und richtet beim ersten Login sein eigenes ein.')
+            except (ValueError,sqlite3.IntegrityError) as exc:
+                notify(request,str(exc),'error')
+            return redirect('/team')
         try:
             cid=int(data.get('company_id') or co['id'])
         except (ValueError,TypeError):
@@ -650,6 +749,8 @@ def create_app(data_dir=None):
                 existing=one(con,'SELECT * FROM users WHERE email=?',(email,))
                 if existing:
                     uid=existing['id']
+                    if existing['can_create_company']:
+                        raise ValueError('Dieser Benutzer wartet auf seine eigene Geschäftseinrichtung.')
                     if existing['is_superadmin'] and uid!=user['id']:
                         raise HTTPException(403,'Der Hauptadministrator kann hier nicht geaendert werden')
                     if existing['restricted_company_id'] not in (None,cid) and not multi:
@@ -680,6 +781,21 @@ def create_app(data_dir=None):
             notify(request,'Zugang gespeichert: '+ ('Geschaeftsleitung fuer dieses Geschaeft' if role=='admin' else 'Zugriff auf dieses Geschaeft'))
         except (ValueError, sqlite3.IntegrityError) as exc:
             notify(request,str(exc),'error')
+        return redirect('/team')
+
+    @app.post('/team/pending/{member_id}/cancel')
+    async def team_cancel_pending(request:Request,member_id:int):
+        user,co=current(request,'admin')
+        await form(request)
+        with transaction(db_path,True) as con:
+            pending=one(con,"SELECT id,email FROM users WHERE id=? AND can_create_company=1 AND invited_from_company_id=? AND active=1",(member_id,co['id']))
+            if not pending:
+                raise HTTPException(404,'Einladung nicht vorhanden')
+            if one(con,'SELECT 1 FROM memberships WHERE user_id=?',(member_id,)):
+                raise HTTPException(409,'Benutzer hat bereits ein Geschäft')
+            con.execute('DELETE FROM users WHERE id=?',(member_id,))
+            audit(con,co['id'],user['id'],'Einrichtungseinladung widerrufen',pending['email'])
+        notify(request,'Einladung widerrufen.')
         return redirect('/team')
 
     @app.post('/team/{member_id}/role')
@@ -1198,7 +1314,8 @@ def create_app(data_dir=None):
         path = company_logo_path(root, company)
         if not path:
             raise HTTPException(404, 'Kein Logo fuer dieses Geschaeft')
-        return FileResponse(path, media_type='image/png' if path.suffix.lower()=='.png' else 'image/jpeg')
+        return FileResponse(path, media_type='image/png' if path.suffix.lower()=='.png' else 'image/jpeg',
+                            headers={'Cache-Control':'no-store, private'})
 
     @app.get('/media/login-logo')
     async def public_login_logo(request:Request):
@@ -1207,16 +1324,16 @@ def create_app(data_dir=None):
         path = site_logo_path(root)
         if not path:
             raise HTTPException(404)
-        return FileResponse(path, media_type='image/png')
+        return FileResponse(path, media_type='image/png', headers={'Cache-Control':'no-store'})
 
     @app.get('/media/logo')
     async def logo_media(request:Request):
         user,co=current(request)
-        if not co['logo_path']:raise HTTPException(404)
-        path=(root / co['logo_path']).resolve()
-        if not path.is_relative_to((root/'uploads').resolve()) or not path.exists():
+        path=document_logo_path(root, co)
+        if not path:
             raise HTTPException(404)
-        return FileResponse(path,media_type='image/jpeg')
+        return FileResponse(path,media_type='image/png' if path.suffix.lower()=='.png' else 'image/jpeg',
+                            headers={'Cache-Control':'no-store, private'})
 
     def filtered_invoices(con, cid, kind, q='', status='', currency='', date_from='', date_to='', sort='newest'):
         """Build one parameterized filter for the on-screen list and its CSV export."""
@@ -1405,12 +1522,12 @@ def create_app(data_dir=None):
             company=dict(co)
             # Nicht versandfaehig: bewusst kein bezahlbarer QR-Zahlteil vor Freigabe.
             company['iban']=''
-            if company.get('logo_path'):
-                company['logo_path']=str(root/company['logo_path'])
+            doc_logo = document_logo_path(root, company)
+            company['logo_path'] = str(doc_logo) if doc_logo else ''
             company['designer_asset_root']=str(root/'uploads'/'designs'/str(co['id']))
             pdf,_=make_pdf(invoice,company,cust,result['lines'],preview=True)
             return Response(pdf,media_type='application/pdf',headers={
-                'Content-Disposition':'inline; filename="ENTWURF_NICHT_VERSENDEN.pdf"'})
+                'Content-Disposition':'inline; filename="RECHNUNG_VORSCHAU.pdf"'})
         except (ValueError,OverflowError,TypeError) as exc:
             raise HTTPException(422,'PDF-Vorschau: '+str(exc))
 
@@ -1623,8 +1740,8 @@ def create_app(data_dir=None):
                 else:
                     customer=customer_snapshot(con,co['id'],inv['customer_id'])
                 comp=dict(co)
-                if comp.get('logo_path'):
-                    comp['logo_path']=str(root/comp['logo_path'])
+                doc_logo = document_logo_path(root, comp)
+                comp['logo_path'] = str(doc_logo) if doc_logo else ''
                 pdf_bytes,qr=make_reminder_pdf(inv,comp,customer,reminder_row,balance)
                 con.execute('''INSERT INTO reminders(company_id,invoice_id,level,sent_at,note,balance_at)
                     VALUES(?,?,?,?,?,?)''',(co['id'],rid,level,reminder_row['sent_at'],
@@ -2143,12 +2260,18 @@ def create_app(data_dir=None):
         user,co=current(request,'admin')
         data=await form(request)
         try:
+            draft_mark = (1 if data.get('pdf_show_draft_mark') else 0) if data.get('_pdf_draft_mark_present') else int(co.get('pdf_show_draft_mark', 1))
             iban=normalize_iban(data.get('iban'))
             if iban and not valid_iban(iban):
                 raise ValueError('Die IBAN-Pruefziffer ist ungueltig. Nur CH-/LI-IBAN erlaubt.')
             days=int(data.get('default_due_days','30'))
             if days<0 or days>365:raise ValueError('Zahlungsfrist 0-365 Tage')
             color=safe_color(data.get('color','#2563eb'))
+            business_type=str(data.get('business_type',co.get('business_type','company')))
+            if business_type not in BUSINESS_TYPES:
+                raise ValueError('Bitte eine gültige Geschäftsart auswählen')
+            if business_type=='private' and data.get('tax_registered'):
+                raise ValueError('Private Gelegenheitsrechnungen nicht mit MWST ausstellen. Bitte die Geschäftsart oder den MWST-Status ändern.')
             tax=str(dec(data.get('default_tax','0'))) if data.get('tax_registered') else '0'
             if dec(tax)<0 or dec(tax)>100:raise ValueError('MWST-Satz ungueltig')
             number_prefix=valid_prefix(data.get('number_prefix',co['number_prefix']))
@@ -2168,22 +2291,22 @@ def create_app(data_dir=None):
             if iban and ((is_qr_iban(iban) and qr_type in ('SCOR','NON')) or
                          (not is_qr_iban(iban) and qr_type=='QRR')):
                 raise ValueError('QR-Referenzart passt nicht zur IBAN. AUTO waehlen oder im QR-Test pruefen.')
-            fields=('name','street','building','zip','city','country','email','phone','uid','iban','currency','tax_registered',
+            fields=('name','business_type','street','building','zip','city','country','email','phone','uid','iban','currency','tax_registered',
                     'default_tax','color','footer_text','payment_terms','default_due_days','number_prefix',
                     'quote_prefix','credit_prefix','number_padding','next_invoice','next_quote','next_credit',
-                    'qr_reference_type','qr_message','logo_path')
+                    'qr_reference_type','qr_message','logo_path','pdf_show_draft_mark')
             with transaction(db_path,True) as con:
                 logo=item_image(con,co['id'],data.get('logo'),co['logo_path'])
-                values=[str(data.get('name','')).strip(),str(data.get('street','')).strip(),str(data.get('building','')).strip(),
+                values=[str(data.get('name','')).strip(),business_type,str(data.get('street','')).strip(),str(data.get('building','')).strip(),
                         str(data.get('zip','')).strip(),str(data.get('city','')).strip(),
                         str(data.get('country','CH')).upper().strip(),str(data.get('email','')).strip(),
                         str(data.get('phone','')).strip(),str(data.get('uid','')).strip(),iban,
                         str(data.get('currency','CHF')).upper(),1 if data.get('tax_registered') else 0,
                         tax,color,str(data.get('footer_text',''))[:300],str(data.get('payment_terms',''))[:300],
                         days,number_prefix,quote_prefix,credit_prefix,padding,next_invoice,next_quote,next_credit,
-                        qr_type,qr_message,logo]
+                        qr_type,qr_message,logo,draft_mark]
                 if not values[0]:raise ValueError('Firmenname fehlt')
-                if values[10] not in ('CHF','EUR'):raise ValueError('Waehrung CHF oder EUR')
+                if values[11] not in ('CHF','EUR'):raise ValueError('Waehrung CHF oder EUR')
                 con.execute('UPDATE companies SET '+','.join(f+'=?' for f in fields)+' WHERE id=?',(*values,co['id']))
                 audit(con,co['id'],user['id'],'Firmeneinstellungen','inkl. Nummernkreis und QR-Einstellungen aktualisiert')
             notify(request,'Firmendaten, Nummernkreise und QR-Einstellungen gespeichert')
@@ -2468,8 +2591,8 @@ def create_app(data_dir=None):
         if overrides:
             template.update(overrides)
         template['iban']=''  # Nie einen zahlbaren QR-Code aus einem Musterdokument erzeugen.
-        if template.get('logo_path'):
-            template['logo_path']=str(root/template['logo_path'])
+        doc_logo = document_logo_path(root, template)
+        template['logo_path'] = str(doc_logo) if doc_logo else ''
         template['designer_asset_root']=str(root/'uploads'/'designs'/str(co['id']))
         sample_customer={'name':'Musterkunde AG','street':'Musterstrasse','building':'8',
                          'zip':'8000','city':'Zuerich','country':'CH',
@@ -2486,7 +2609,7 @@ def create_app(data_dir=None):
              'MUSTER - Nur zur Gestaltungskontrolle. Nicht versenden.',
              'subtotal':result['subtotal'],'tax_total':result['tax_total'],'total':result['total'],
              'tax_breakdown':json.dumps(result['tax_breakdown'])}
-        pdf,_=make_pdf(inv,template,sample_customer,result['lines'],preview=True)
+        pdf,_=make_pdf(inv,template,sample_customer,result['lines'],preview=True,force_preview_label=True)
         return Response(pdf,media_type='application/pdf',headers={
             'Content-Disposition':'inline; filename="MUSTER_NICHT_VERSENDEN.pdf"'})
 

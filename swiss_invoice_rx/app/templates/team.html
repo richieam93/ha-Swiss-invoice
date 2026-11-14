@@ -12,9 +12,16 @@
 <div class="hi-team-layout">
   <section class="card hi-team-new">
     <div class="section-title"><h2>Benutzer zuordnen</h2><span class="hi-team-step">NEU</span></div>
-    <p class="small-help">Neue Benutzer erhalten standardmässig <b>nur Zugriff auf das ausgewählte Geschäft</b>.</p>
+    <p class="small-help">Wähle, ob die Person hier mitarbeitet oder beim ersten Login <b>ein vollständig eigenes Geschäft</b> einrichtet.</p>
+    <div class="own-company-option">
+      <label class="own-company-check" for="team-own-company">
+        <input type="checkbox" id="team-own-company" name="create_own_company" value="1">
+        <span><strong>Eigenes Geschäft erstellen</strong><small>Dieser Benutzer sieht keine Daten deines Geschäfts. Er wird nach dem Login durch die Einrichtung seiner eigenen Firma geführt.</small></span>
+      </label>
+    </div>
     <form method="post" action="{{ ingress_prefix }}/team">
       <input type="hidden" name="_csrf" value="{{ csrf }}">
+      <div id="team-assign-fields">
       <div class="field mb-3">
         <label for="team-business">1. Aktives Geschäft zuweisen *</label>
         <select id="team-business" name="company_id" required>
@@ -33,6 +40,7 @@
         </select>
         <div class="info-box mt-2" id="team-role-help">Geschäftsleitung darf Rechnungen, Kunden, Artikel, Zahlungen, Vorlagen, Firmeneinstellungen und Benutzer dieses Geschäfts verwalten. Kein Zugriff auf andere Geschäfte oder Gesamtbackups.</div>
       </div>
+      </div>
       <div class="field mb-2"><label for="team-email">3. E-Mail-Adresse *</label><input id="team-email" type="email" name="email" autocomplete="off" required placeholder="mitarbeiter@beispiel.ch"></div>
       <div class="field mb-2"><label for="team-name">Name</label><input id="team-name" name="full_name" placeholder="Vorname Nachname"></div>
       <div class="field mb-3"><label for="team-password">Startpasswort für neue Benutzer *</label><input id="team-password" type="password" name="password" minlength="10" autocomplete="new-password" placeholder="Mindestens 10 Zeichen"><small>Bei bereits existierenden Benutzern wird das bisherige Passwort beibehalten.</small></div>
@@ -43,7 +51,7 @@
         <p class="small-help">Nur für den Hauptadministrator: Dieser Benutzer kann später zusätzlichen Geschäften zugeordnet werden. Ohne diese Option bleibt der Zugang auf das ausgewählte Geschäft begrenzt.</p>
       </details>
       {% endif %}
-      <button class="btn btn-primary btn-block" type="submit">Benutzer erstellen / zuordnen</button>
+<button class="btn btn-primary btn-block" id="team-create-submit" type="submit">Benutzer erstellen / zuordnen</button>
     </form>
   </section>
 
@@ -99,5 +107,18 @@
     <div class="info-box mt-3">Der letzte Geschäftsadministrator und der eigene Administratorzugang sind vor versehentlicher Entfernung geschützt.</div>
   </section>
 </div>
+{% if pending %}
+<section class="card mt-3">
+  <div class="section-title"><h2>Ausstehende eigene Geschäftseinrichtungen</h2><span class="pill">{{ pending|length }} offen</span></div>
+  <p class="small-help">Diese Konten haben <strong>keinen Zugriff</strong> auf dein Geschäft. Sie können nur ihre eigene Einrichtung abschliessen.</p>
+  <div class="table-scroll"><table class="table hi-stacked"><thead><tr><th>Benutzer</th><th>Erstellt</th><th>Einladung</th></tr></thead><tbody>
+    {% for m in pending %}<tr>
+      <td data-label="Benutzer"><strong>{{ m.full_name }}</strong><div class="subtext">{{ m.email }}</div></td>
+      <td data-label="Erstellt">{{ m.created_at }}</td>
+      <td data-label="Einladung"><form action="{{ ingress_prefix }}/team/pending/{{ m.id }}/cancel" method="post"><input type="hidden" name="_csrf" value="{{ csrf }}"><button type="submit" class="btn btn-sm btn-danger" data-confirm="Einladung wirklich widerrufen?">Einladung widerrufen</button></form></td>
+    </tr>{% endfor %}
+  </tbody></table></div>
+</section>
+{% endif %}
 <script src="{{ ingress_prefix }}/static/team.js" defer></script>
 {% endblock %}

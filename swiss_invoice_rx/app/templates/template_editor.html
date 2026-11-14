@@ -117,7 +117,7 @@
     <div class="studio-preview-toolbar"><label for="tpl-preview-kind">Dokumenttyp testen</label><select id="tpl-preview-kind" name="_preview_kind" form="template-studio"><option value="invoice">Rechnung</option><option value="quote">Offerte</option><option value="credit">Gutschrift</option></select></div>
     <div class="studio-preview-container"><article class="studio-paper" id="invoice-preview" data-tax-rate="{{ settings.default_tax if settings.tax_registered else '0' }}" data-currency="{{ settings.currency }}" aria-label="Musterrechnung">
       <div class="studio-paper-top"><div class="studio-paper-brand" id="preview-brand">
-          {% if settings.logo_path %}<img id="studio-logo" src="{{ ingress_prefix }}/media/logo" alt="Firmenlogo">{% endif %}
+          {% if document_logo_available %}<img id="studio-logo" src="{{ ingress_prefix }}/media/logo" alt="Firmenlogo">{% endif %}
           <strong id="studio-wordmark">{{ settings.name }}</strong>
         </div><div class="studio-paper-address">{{ settings.name }}<br>{{ settings.street }} {{ settings.building }}<br>{{ settings.zip }} {{ settings.city }}<br>{{ settings.email }}</div></div>
       <div class="studio-paper-recipient"><strong>Musterkunde AG</strong><br>Musterstrasse 8<br>8000 Z&uuml;rich<br><span id="preview-customer-email" {% if not settings.template_show_customer_email %}hidden{% endif %}>kontakt@musterkunde.example</span></div>
@@ -132,7 +132,7 @@
       <p class="studio-paper-terms" id="preview-terms" {% if not settings.template_show_payment_terms %}hidden{% endif %}>{{ settings.payment_terms.replace('{days}',settings.default_due_days|string) }}</p>
       <div class="studio-paper-footer" id="preview-footer">{{ settings.template_footer or settings.footer_text }}</div><span class="studio-paper-page" id="preview-pages" {% if not settings.template_show_page_numbers %}hidden{% endif %}>Seite 1</span>
     </article></div>
-    <div class="studio-preview-help"><strong>Wichtig zur QR-Rechnung:</strong> Gestaltung &auml;ndert nicht den standardisierten Swiss-QR-Zahlteil. Die PDF-Musteransicht enth&auml;lt bewusst keinen zahlbaren QR-Code und ist als Entwurf markiert.</div>
+    <div class="studio-preview-help"><strong>Wichtig zur QR-Rechnung:</strong> Gestaltung &auml;ndert nicht den standardisierten Swiss-QR-Zahlteil. Die PDF-Musteransicht enth&auml;lt bewusst keinen zahlbaren QR-Code und bleibt immer als Muster gekennzeichnet. Der Entwurfs-Schalter f&uuml;r echte Rechnungen ist unter <a href="{{ ingress_prefix }}/settings#hi-layout">Firmendaten &amp; PDF</a>.</div>
   </div>
 </div>
 <script src="{{ ingress_prefix }}/static/template_studio.js" defer></script>

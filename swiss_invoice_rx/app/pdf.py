@@ -357,7 +357,7 @@ def qr_payment_page(c, inv, company, customer, qr, preview=False):
     c.showPage()
 
 
-def make_pdf(inv, company, customer, lines, preview=False):
+def make_pdf(inv, company, customer, lines, preview=False, force_preview_label=False):
     """Returns (PDF bytes, QR metadata or None); raises on malformed configured QR."""
     company = dict(company)
     customer = dict(customer)
@@ -366,17 +366,20 @@ def make_pdf(inv, company, customer, lines, preview=False):
     c = canvas.Canvas(buf, pagesize=A4, pageCompression=1)
     c.setTitle(f"{inv['number']} - {company['name']}")
     c.setAuthor(company['name'])
+    # Display setting is per business, not per document template. A design
+    # sample always shows the safety label, even when regular drafts do not.
+    marked_preview = bool(preview and (force_preview_label or company.get('pdf_show_draft_mark', 1)))
     if company.get('designer_enabled'):
         from .designer import designer_invoice_pages
-        designer_invoice_pages(c, inv, company, customer, lines, preview=preview)
+        designer_invoice_pages(c, inv, company, customer, lines, preview=marked_preview)
     else:
-        invoice_pages(c, inv, company, customer, lines, preview=preview)
+        invoice_pages(c, inv, company, customer, lines, preview=marked_preview)
     qr = None
     if inv['kind'] == 'invoice' and cents(inv['total']) > 0 and company.get('iban'):
         qr = build_payload(company, customer, inv['total'], inv['currency'],
                            f"{company.get('id', 1):05d}{inv.get('id', 1):012d}",
                            inv['number'])
-        qr_payment_page(c, inv, company, customer, qr, preview=preview)
+        qr_payment_page(c, inv, company, customer, qr, preview=marked_preview)
     c.save()
     return buf.getvalue(), qr
 

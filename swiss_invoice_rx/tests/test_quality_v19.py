@@ -260,7 +260,7 @@ class QualityV19Tests(unittest.TestCase):
             con.execute('PRAGMA user_version=9')
         initialize(self.db)
         with transaction(self.db) as con:
-            self.assertEqual(con.execute('PRAGMA user_version').fetchone()[0],12)
+            self.assertEqual(con.execute('PRAGMA user_version').fetchone()[0],14)
             item=con.execute("SELECT name,reorder_point FROM items WHERE sku='ALT-1'").fetchone()
             self.assertEqual(item['name'],'Vorhandenes Material')
             self.assertEqual(item['reorder_point'],'5')

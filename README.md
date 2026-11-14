@@ -12,9 +12,9 @@ Swiss-invoice-RX Home-Assistant
 - Zahlungen, Mahnungen, Bankdateien (camt.053/054), Auswertungen, CSV-Exporte
 - Vorlagen-Studio und frei gestaltbarer A4-Drag-and-Drop-Designer
 - Mehrere Geschäfte mit getrennter Datenbankzuordnung
-- Benutzerverwaltung inklusive **Geschäftsleitung mit Vollrechten nur für das zugewiesene Geschäft**
+- Benutzerverwaltung 
 - Lokale SQLite-Datenbank und Home-Assistant-Backups
-- **Individuelle Geschäftslogos:** Jeder Benutzer sieht nach der Anmeldung das Logo seines zugewiesenen Geschäfts. Zusätzlich gibt es ein allgemeines Anmeldelogo.
+
 
 ## Installation in Home Assistant
 
@@ -56,6 +56,11 @@ ha-Swiss-invoice/
 Der Zugriff erfolgt ausschliesslich über **Home Assistant Ingress**, ohne einen öffentlichen TCP-Port. Für die Mandantenrechte gibt es **zusätzlich zur Home-Assistant-Anmeldung eine eigene Benutzeranmeldung**.
 
 
-## Logos und Branding
 
-**Einstellungen → Firmendaten → Logos**: Oberflächenlogo pro Geschäft hochladen (Geschäftsleitung). Nur der Hauptadministrator darf das allgemeine Anmeldelogo ändern. Vor der Anmeldung wird aus Datenschutzgründen noch kein benutzerspezifisches Logo angezeigt; nach dem Login erscheint automatisch das richtige Geschäft. Details: [Logo-Anleitung](swiss_invoice_rx/LOGOS_ANLEITUNG.md).
+
+## Swiss-invoice-RX 2.5.0: PDF-Logo und Entwurfsanzeige
+
+Das Geschäftslogo wird auch im Vorlagen-Studio, freien PDF-Designer und auf neuen PDFs
+verwendet, falls kein gesondertes Rechnungslogo gesetzt ist. Unter Firmendaten kann die
+Entwurfs-Kennzeichnung für heruntergeladene Entwurfs-PDFs pro Geschäft deaktiviert werden.
+Musterbelege behalten ihre Kennzeichnung. Bereits archivierte PDFs werden nicht verändert.
