@@ -18,3 +18,12 @@
     form.elements[name]?.addEventListener('change',updateNumbers);
   });
 })();
+
+// MWST nur für registrierte Unternehmen aktivieren; die übrigen Daten bleiben editierbar.
+(() => {
+  const toggle=document.getElementById('settings-tax-toggle');
+  const panel=document.getElementById('settings-default-tax');
+  if(!toggle||!panel)return;
+  const apply=()=>{panel.hidden=!toggle.checked;};
+  toggle.addEventListener('change',apply);apply();
+})();

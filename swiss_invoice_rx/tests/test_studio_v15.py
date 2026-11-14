@@ -236,7 +236,7 @@ class MigrationVersion15Tests(unittest.TestCase):
             initialize(path)
             con=db_connect(path)
             try:
-                self.assertEqual(con.execute('PRAGMA user_version').fetchone()[0],15)
+                self.assertEqual(con.execute('PRAGMA user_version').fetchone()[0],16)
                 self.assertEqual([tuple(x) for x in con.execute('SELECT number FROM invoices')],[('ALT-1',)])
                 self.assertEqual([tuple(x) for x in con.execute('SELECT name FROM customers')],[('Alt Kunde',)])
                 self.assertEqual(con.execute('SELECT template_density FROM companies').fetchone()[0],'normal')

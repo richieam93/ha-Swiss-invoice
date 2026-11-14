@@ -76,11 +76,11 @@
         <div class="field"><label for="tpl-body">Schriftgr&ouml;sse der Positionen</label><select name="template_body_size" id="tpl-body">
           {% for size in (8,9,10) %}<option value="{{ size }}" {% if settings.template_body_size|int==size %}selected{% endif %}>{{ size }} pt</option>{% endfor %}
         </select></div>
-        <div class="field span-2"><label for="tpl-logo-size">Logo-Breite im PDF</label><select name="template_logo_size" id="tpl-logo-size">
-          <option value="80" {% if settings.template_logo_size|int==80 %}selected{% endif %}>Klein (80 pt)</option>
-          <option value="110" {% if settings.template_logo_size|int==110 %}selected{% endif %}>Normal (110 pt)</option>
-          <option value="140" {% if settings.template_logo_size|int==140 %}selected{% endif %}>Gross (140 pt)</option>
-        </select></div>
+        <div class="field"><label for="tpl-logo-size">Logo-Breite (pt)</label><input name="template_logo_size" id="tpl-logo-size" type="number" min="30" max="640" step="5" value="{{ settings.template_logo_size }}"><small>30–640 pt (bis ca. 226 mm)</small></div>
+        <div class="field"><label for="tpl-logo-height">Logo-Höhe (mm)</label><input name="template_logo_height_mm" id="tpl-logo-height" type="number" min="5" max="330" step="1" value="{{ settings.template_logo_height_mm }}"></div>
+        <div class="field"><label for="tpl-logo-x">Abstand zur Seitenkante (mm)</label><input name="template_logo_x_mm" id="tpl-logo-x" type="number" min="-30" max="205" step="0.5" value="{{ settings.template_logo_x_mm }}"><small>0 = direkt an der Kante, -3 = 3 mm Beschnitt. Bei gespiegeltem Layout von rechts.</small></div>
+        <div class="field"><label for="tpl-logo-y">Abstand von oben (mm)</label><input name="template_logo_y_mm" id="tpl-logo-y" type="number" min="-30" max="292" step="0.5" value="{{ settings.template_logo_y_mm }}"><small>0 = oberer Blattrand, negative Werte = Beschnitt.</small></div>
+        <div class="field span-2"><label for="tpl-logo-fit">Bildanpassung</label><select name="template_logo_fit" id="tpl-logo-fit"><option value="contain" {% if settings.template_logo_fit=='contain' %}selected{% endif %}>Ganzes Logo sichtbar</option><option value="cover" {% if settings.template_logo_fit=='cover' %}selected{% endif %}>Fläche füllen (Zuschneiden)</option><option value="stretch" {% if settings.template_logo_fit=='stretch' %}selected{% endif %}>Auf Fläche strecken</option></select></div>
       </div>
     </section>
     <section class="card form-section"><div class="section-title"><h2>02 / Inhalte und Sichtbarkeit</h2></div>
@@ -89,11 +89,11 @@
         <label><input type="checkbox" name="template_show_logo" id="tpl-logo" value="1" {% if settings.template_show_logo %}checked{% endif %}><span>Firmenlogo anzeigen</span></label>
         <label><input type="checkbox" name="template_show_customer_email" id="tpl-customer-email" value="1" {% if settings.template_show_customer_email %}checked{% endif %}><span>E-Mail des Kunden in der Anschrift anzeigen</span></label>
         <label><input type="checkbox" name="template_show_service_date" id="tpl-service" value="1" {% if settings.template_show_service_date %}checked{% endif %}><span>Leistungsdatum anzeigen</span></label>
-        <label><input type="checkbox" name="template_show_tax_breakdown" id="tpl-tax" value="1" {% if settings.template_show_tax_breakdown %}checked{% endif %}><span>MWST nach Steuersatz ausweisen</span></label>
+        <label {% if not settings.tax_registered %}hidden{% endif %}><input type="checkbox" name="template_show_tax_breakdown" id="tpl-tax" value="1" {% if settings.template_show_tax_breakdown %}checked{% endif %}><span>MWST nach Steuersatz ausweisen</span></label>
         <label><input type="checkbox" name="template_show_payment_terms" id="tpl-terms" value="1" {% if settings.template_show_payment_terms %}checked{% endif %}><span>Zahlungsbedingungen unter dem Total anzeigen</span></label>
         <label><input type="checkbox" name="template_show_page_numbers" id="tpl-pages" value="1" {% if settings.template_show_page_numbers %}checked{% endif %}><span>Seitennummerierung im PDF anzeigen</span></label>
       </div>
-      <p class="small-help mt-3">Bei mehreren MWST-S&auml;tzen wird die Aufteilung im PDF aus rechtlichen Gr&uuml;nden immer gezeigt. F&auml;lligkeit, Rechnungsnummer und Pflichtangaben bleiben erhalten.</p>
+      <p class="small-help mt-3">{% if settings.tax_registered %}Bei mehreren MWST-Sätzen wird die Aufteilung im PDF getrennt gezeigt. {% endif %}Rechnungsnummer, Fälligkeit und Pflichtangaben bleiben erhalten.</p>
     </section>
     <section class="card form-section"><div class="section-title"><h2>03 / Standardtexte</h2></div>
       <div class="field mb-3"><label for="tpl-default-notes">Standardtext auf <b>neuen</b> Rechnungen</label>
@@ -127,7 +127,7 @@
         <tr><td>Beratungsleistung</td><td>2 Std.</td><td>125.00</td><td>250.00</td></tr>
         <tr><td>Projektpauschale</td><td>1 Stk.</td><td>45.00</td><td>45.00</td></tr>
       </tbody></table>
-      <div class="studio-paper-totals"><p>Zwischensumme <b id="preview-subtotal">CHF 295.00</b></p><p id="preview-tax">MWST <b id="preview-tax-amount">CHF 23.90</b></p><p class="studio-paper-total">TOTAL <strong id="preview-grand-total">CHF 318.90</strong></p></div>
+      <div class="studio-paper-totals"><p>Zwischensumme <b id="preview-subtotal">CHF 295.00</b></p><p id="preview-tax" {% if not settings.tax_registered %}hidden{% endif %}>MWST <b id="preview-tax-amount">CHF 23.90</b></p><p class="studio-paper-total">TOTAL <strong id="preview-grand-total">CHF 318.90</strong></p></div>
       <p class="studio-paper-notes" id="preview-notes">{{ settings.default_invoice_notes or 'Vielen Dank fuer Ihren Auftrag.' }}</p>
       <p class="studio-paper-terms" id="preview-terms" {% if not settings.template_show_payment_terms %}hidden{% endif %}>{{ settings.payment_terms.replace('{days}',settings.default_due_days|string) }}</p>
       <div class="studio-paper-footer" id="preview-footer">{{ settings.template_footer or settings.footer_text }}</div><span class="studio-paper-page" id="preview-pages" {% if not settings.template_show_page_numbers %}hidden{% endif %}>Seite 1</span>

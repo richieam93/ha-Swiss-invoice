@@ -6,8 +6,9 @@ const SWISS_BASE = document.querySelector('meta[name="swiss-invoice-base"]')?.ge
   const tbody = document.getElementById('invoice-rows');
   const items = JSON.parse(form.dataset.items || '[]');
   const customers = JSON.parse(form.dataset.customers || '[]');
-  const editing = form.dataset.editing === '1';
+  let editing = form.dataset.editing === '1';
   const kind = form.dataset.kind;
+  const taxEnabled = form.dataset.taxRegistered === '1';
   const numberField = document.getElementById('invoice-number');
   const suggested = numberField.placeholder || '';
   const due = document.getElementById('due-date');
@@ -39,6 +40,8 @@ const SWISS_BASE = document.querySelector('meta[name="swiss-invoice-base"]')?.ge
   });
   const toggleCustomer = document.getElementById('toggle-customer');
   const status = document.getElementById('editor-feedback');
+  const saveStatus = document.getElementById('editor-autosave');
+  let autosaveTimer=null, autosavePromise=null, autosaveVersion=0;
   let changed = false;
   let sending = false;
   let lastRemoved = null;
@@ -54,6 +57,13 @@ const SWISS_BASE = document.querySelector('meta[name="swiss-invoice-base"]')?.ge
     return v.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, "'");
   };
   const byName = (tr, key) => tr.querySelector(`[name="${key}[]"]`);
+  function chooseUnit(select, unit) {
+    if (![...select.options].some(option => option.value === String(unit))) {
+      const option = document.createElement('option');option.value=String(unit);
+      option.textContent=String(unit);select.add(option);
+    }
+    select.value=String(unit);
+  }
   const getDate = dateText => {
     if (!/^\d{4}-\d\d-\d\d$/.test(dateText || '')) return null;
     const d = new Date(dateText + 'T12:00:00');
@@ -63,7 +73,12 @@ const SWISS_BASE = document.querySelector('meta[name="swiss-invoice-base"]')?.ge
     status.textContent = message;
     status.className = isError ? 'small-help editor-error' : 'small-help';
   }
-  function markChanged() { changed = true; feedback('Nicht gespeicherte Aenderungen'); }
+  function markChanged() {
+    changed = true;autosaveVersion++;
+    feedback('Änderungen werden automatisch gesichert.');
+    persistLocalDraft();
+    scheduleAutosave();
+  }
   function setText(selector, text) { const target = document.querySelector(selector); if (target) target.textContent = text; }
   function showStock(tr) {
     const item = items.find(a => String(a.id) === byName(tr, 'item_id').value);
@@ -104,7 +119,7 @@ const SWISS_BASE = document.querySelector('meta[name="swiss-invoice-base"]')?.ge
     box.classList.add('is-good');
   }
   function recalc() {
-    let subtotal = 0;
+    let subtotal = 0, gross = 0, afterPosition = 0;
     const buckets = new Map();
     const discount = Math.max(0, Math.min(100, parseFloat(document.getElementById('global-discount').value) || 0));
     const previewRows = document.getElementById('live-preview-rows');
@@ -114,17 +129,21 @@ const SWISS_BASE = document.querySelector('meta[name="swiss-invoice-base"]')?.ge
       const qty = parseFloat(byName(tr,'qty').value) || 0;
       const price = parseFloat(byName(tr,'price').value) || 0;
       const lineDiscount = parseFloat(byName(tr,'discount').value) || 0;
-      const rate = parseFloat(byName(tr,'tax_rate').value) || 0;
-      const mode = byName(tr,'tax_mode').value;
+      const rate = taxEnabled ? (parseFloat(byName(tr,'tax_rate').value) || 0) : 0;
+      const mode = taxEnabled ? byName(tr,'tax_mode').value : 'taxable';
+      const lineGross = Math.round((qty * price + Number.EPSILON) * 100) / 100;
+      const afterLine = Math.round((qty * price * (1-lineDiscount/100) + Number.EPSILON) * 100) / 100;
       const net = Math.round((qty * price * (1-lineDiscount/100) * (1-discount/100) + Number.EPSILON) * 100) / 100;
-      subtotal += net;
-      const key = mode === 'taxable' ? `tax:${rate}` : `other:${mode}`;
-      buckets.set(key, (buckets.get(key)||0) + net);
-      tr.querySelector('.line-total').textContent = money(net);
+      gross += lineGross;afterPosition += afterLine;subtotal += net;
+      if (taxEnabled) {
+        const key = mode === 'taxable' ? `tax:${rate}` : `other:${mode}`;
+        buckets.set(key, (buckets.get(key)||0) + net);
+      }
+      tr.querySelector('.line-total').textContent = money(afterLine);
       tr.querySelector('.line-index').textContent = `Position ${index+1}`;
       tr.querySelector('.line-kind').textContent = byName(tr,'item_id').value ? 'Aus Artikelkatalog' : 'Freie Position';
       const taxText = mode === 'exempt' ? 'Steuerbefreit' : mode === 'excluded' ? 'Von MWST ausgenommen' : `${rate}% MWST`;
-      tr.querySelector('.line-tax-summary').textContent = `${taxText} · ${lineDiscount}% Rabatt`;
+      tr.querySelector('.line-tax-summary').textContent = `${lineDiscount}% Rabatt${taxEnabled ? ' · '+taxText : ''}`;
       const desc = byName(tr,'description').value.trim();
       if (desc) {
         rowCount++;
@@ -132,7 +151,7 @@ const SWISS_BASE = document.querySelector('meta[name="swiss-invoice-base"]')?.ge
           const row = document.createElement('tr');
           const cell1 = document.createElement('td');cell1.textContent = desc;
           const cell2 = document.createElement('td');cell2.textContent = byName(tr,'qty').value+' '+byName(tr,'unit').value;
-          const cell3 = document.createElement('td');cell3.className = 'num';cell3.textContent = money(net);
+          const cell3 = document.createElement('td');cell3.className = 'num';cell3.textContent = money(afterLine);
           row.append(cell1,cell2,cell3);previewRows.appendChild(row);
         }
       }
@@ -154,6 +173,16 @@ const SWISS_BASE = document.querySelector('meta[name="swiss-invoice-base"]')?.ge
     });
     const total = subtotal + tax;
     const currency = document.getElementById('invoice-currency').value;
+    const grossRounded = Math.round(gross*100)/100, afterRounded=Math.round(afterPosition*100)/100;
+    const subRounded=Math.round(subtotal*100)/100;
+    const lineReduction=Math.round((grossRounded-afterRounded)*100)/100;
+    const globalReduction=Math.round((afterRounded-subRounded)*100)/100;
+    for (const [id,amount] of [['gross-live-row',lineReduction||globalReduction],['line-discount-live-row',lineReduction],['global-discount-live-row',globalReduction]]) {
+      const row=document.getElementById(id);if(row)row.hidden=!amount;
+    }
+    setText('#gross-live',money(grossRounded));
+    setText('#line-discount-live',(lineReduction>0?'- ':'+ ')+money(Math.abs(lineReduction)));
+    setText('#global-discount-live',(globalReduction>0?'- ':'+ ')+money(Math.abs(globalReduction)));
     setText('#subtotal-live',money(subtotal));setText('#tax-live',money(tax));
     setText('#total-live',money(total));setText('#live-preview-total',money(total));
     document.querySelectorAll('.editor-currency').forEach(el => el.textContent = currency);
@@ -172,15 +201,16 @@ const SWISS_BASE = document.querySelector('meta[name="swiss-invoice-base"]')?.ge
     const tr = previous.cloneNode(true);
     tr.querySelectorAll('input').forEach(el => {
       el.value = el.name === 'qty[]' ? (kind === 'credit' ? '-1' : '1') :
-                 el.name === 'unit[]' ? (type==='service' ? 'Std.' : 'Stk.') :
                  el.name === 'price[]' || el.name === 'discount[]' ? '0' : '';
     });
     tr.querySelectorAll('select').forEach(el => {
+      if (el.name === 'unit[]') chooseUnit(el,type === 'service' ? 'Std.' : type === 'text' ? '-' : 'Stk.');
       if (el.name === 'item_id[]') el.value = '';
-      if (el.name === 'tax_rate[]') el.value = form.dataset.taxRegistered === '1' ? (form.dataset.defaultTax || '0') : '0';
+      if (el.name === 'tax_rate[]') el.value = taxEnabled ? (form.dataset.defaultTax || '0') : '0';
       if (el.name === 'tax_mode[]') el.value = 'taxable';
     });
-    if (type === 'text') {byName(tr,'unit').value = '-';byName(tr,'price').value = '0';}
+    if (!taxEnabled) {byName(tr,'tax_rate').value='0';byName(tr,'tax_mode').value='taxable';}
+    if (type === 'text') {chooseUnit(byName(tr,'unit'),'-');byName(tr,'price').value = '0';}
     tr.querySelector('.stock-hint').textContent = '';
     tr.querySelector('.hi-line-advanced').open = false;
     tbody.appendChild(tr);
@@ -193,13 +223,13 @@ const SWISS_BASE = document.querySelector('meta[name="swiss-invoice-base"]')?.ge
     byName(tr,'description').value=item.name+(item.description?' - '+item.description:'');
     byName(tr,'price').value=item.price;
     const select=byName(tr,'tax_rate');
-    if (![...select.options].some(opt => opt.value===String(item.tax_rate))) {
+    if (taxEnabled && select.tagName==='SELECT' && ![...select.options].some(opt => opt.value===String(item.tax_rate))) {
       const opt=document.createElement('option');opt.value=String(item.tax_rate);opt.textContent=String(item.tax_rate);select.add(opt);
     }
-    select.value=String(item.tax_rate);
-    byName(tr,'tax_mode').value=item.tax_mode||'taxable';
+    select.value=taxEnabled ? String(item.tax_rate) : '0';
+    byName(tr,'tax_mode').value=taxEnabled ? (item.tax_mode||'taxable') : 'taxable';
     byName(tr,'qty').value=kind==='credit'?'-1':'1';
-    byName(tr,'unit').value=item.kind==='service'?'Std.':'Stk.';
+    chooseUnit(byName(tr,'unit'),item.kind==='service'?'Std.':'Stk.');
     markChanged();recalc();
   }
   function isBlankRow(row) {
@@ -214,6 +244,43 @@ const SWISS_BASE = document.querySelector('meta[name="swiss-invoice-base"]')?.ge
     byName(tr,'qty').focus();
     feedback(item.name+' zur Rechnung hinzugefuegt.');
   }
+  // Schnellerfassung: Alle bestehenden Rechnungspositionen werden bei der
+  // Artikelanlage unveraendert beibehalten. Neues Produkt sofort auswahlen.
+  const quickDialog=document.getElementById('new-item-dialog');
+  const quickForm=document.getElementById('new-item-form');
+  const quickError=document.getElementById('quick-item-error');
+  document.getElementById('new-item-button').addEventListener('click',()=>{
+    quickError.hidden=true;quickError.textContent='';
+    quickDialog.showModal();quickForm.elements.namedItem('name').focus();
+  });
+  function closeQuickDialog(){if(quickDialog.open)quickDialog.close();}
+  document.getElementById('cancel-new-item').addEventListener('click',closeQuickDialog);
+  document.getElementById('close-item-dialog').addEventListener('click',closeQuickDialog);
+  quickForm.addEventListener('submit',async(event)=>{
+    event.preventDefault();
+    quickError.hidden=true;
+    if(!quickForm.reportValidity())return;
+    const submit=document.getElementById('save-new-item');submit.disabled=true;
+    const oldLabel=submit.textContent;submit.textContent='Artikel wird gespeichert …';
+    try{
+      const payload=new FormData(quickForm);
+      payload.set('_csrf',form.querySelector('[name="_csrf"]').value);
+      const response=await fetch(SWISS_BASE+'/api/items/quick-create',{
+        method:'POST',body:payload,credentials:'same-origin'});
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(result.detail||'Artikel konnte nicht gespeichert werden.');
+      const item=result.item;
+      if(!item||!Number.isInteger(Number(item.id)))throw new Error('Ungueltige Serverantwort.');
+      items.push(item);
+      for(const picker of tbody.querySelectorAll('.item-picker')){
+        const option=document.createElement('option');option.value=String(item.id);
+        option.textContent=(item.sku||item.name)+' - '+item.name;picker.appendChild(option);
+      }
+      addFoundItem(item);quickForm.reset();closeQuickDialog();
+      feedback('Artikel '+item.name+' erstellt und zur Rechnung hinzugefügt.');
+    }catch(err){quickError.textContent=err.message||'Unbekannter Fehler';quickError.hidden=false;}
+    finally{submit.disabled=false;submit.textContent=oldLabel;}
+  });
   function renderSearch() {
     const query=search.value.trim().toLocaleLowerCase('de-CH');
     searchResults.replaceChildren();
@@ -404,21 +471,21 @@ const SWISS_BASE = document.querySelector('meta[name="swiss-invoice-base"]')?.ge
       byName(tr,'item_id').value='';
       byName(tr,'description').value=row.description;
       byName(tr,'qty').value=row.qty;
-      byName(tr,'unit').value=row.unit;
+      chooseUnit(byName(tr,'unit'),row.unit);
       byName(tr,'price').value=row.price;
       byName(tr,'discount').value=row.discount;
       byName(tr,'tax_mode').value='taxable';
       const tax=byName(tr,'tax_rate');
-      if (![...tax.options].some(option=>option.value===row.tax)) {
+      if (taxEnabled && tax.tagName==='SELECT' && ![...tax.options].some(option=>option.value===row.tax)) {
         const option=document.createElement('option');option.value=row.tax;option.textContent=row.tax+' %';tax.add(option);
       }
-      tax.value=row.tax;
+      tax.value=taxEnabled ? row.tax : '0';
       inserted.push(tr);
     }
     lastBulk={inserted,reused,appended};
     bulkRows=null;bulkSource='';bulkAdd.disabled=true;bulkUndo.hidden=false;
     bulkInput.value='';markChanged();recalc();
-    showBulk(`${inserted.length} Position(en) eingefuegt. Bitte Gesamtbetrag und MWST pruefen und den Entwurf speichern.`);
+    showBulk(`${inserted.length} Position(en) eingefuegt. Bitte Gesamtbetrag und Rabatte prüfen.`);
   });
   bulkUndo?.addEventListener('click',() => {
     if (!lastBulk)return;
@@ -443,8 +510,139 @@ const SWISS_BASE = document.querySelector('meta[name="swiss-invoice-base"]')?.ge
     if (event.target.closest('#invoice-rows') || event.target.closest('#bulk-import-panel') || event.target===customer)return;
     markChanged();recalc();
   });
+  // Autosave: unvollstaendige Eingaben verschluesseln wir nicht im Browser;
+  // sie bleiben im lokalen Browserprofil. Vollstaendige Entwuerfe werden
+  // nach kurzer Eingabepause auch serverseitig gespeichert.
+  const draftKey=()=>['swissrx','editor','v2',form.dataset.userId,form.dataset.companyId,
+                      kind,form.querySelector('[name="id"]').value||'new'].join(':');
+  function snapshotDraft(){
+    const pairs=[...new FormData(form).entries()].filter(([key,val])=>
+      key!=='_csrf' && key!=='id' && typeof val==='string');
+    return {saved:Date.now(),customerOpen:!newCustomer.hidden,pairs};
+  }
+  function persistLocalDraft(){
+    try{localStorage.setItem(draftKey(),JSON.stringify(snapshotDraft()));}
+    catch(e){saveStatus.textContent='Lokale Zwischenspeicherung nicht verfügbar.';saveStatus.classList.add('error');}
+  }
+  function clearLocalDraft(key){
+    try{localStorage.removeItem(key||draftKey());}catch(e){}
+  }
+  function restoreLocalDraft(){
+    let stored;
+    try{stored=JSON.parse(localStorage.getItem(draftKey())||'null');}catch(e){return;}
+    if(!stored||!Array.isArray(stored.pairs))return;
+    if(Date.now()-Number(stored.saved)>7*24*3600*1000){clearLocalDraft();return;}
+    const values=new Map();
+    for(const entry of stored.pairs){
+      if(!Array.isArray(entry)||entry.length!==2||typeof entry[0]!=='string'||typeof entry[1]!=='string')continue;
+      if(!values.has(entry[0]))values.set(entry[0],[]);
+      values.get(entry[0]).push(entry[1]);
+    }
+    const descriptions=values.get('description[]')||[];
+    if(descriptions.length>150)return;
+    while(tbody.querySelectorAll('.editor-line').length<descriptions.length)addRow('normal',false,true);
+    // No form controls get replaced: selected client, CSRF and account remain trusted.
+    for(const [name,list] of values){
+      const elements=[...form.querySelectorAll('[name]')].filter(el=>el.name===name);
+      if(name==='kind'||name==='_csrf'||name==='id')continue;
+      for(let i=0;i<Math.min(elements.length,list.length);i++){
+        const el=elements[i];
+        if(el.type==='file')continue;
+        if(el.type==='checkbox'||el.type==='radio')el.checked=list.includes(el.value);
+        else{
+          if(el.tagName==='SELECT' && ![...el.options].some(o=>o.value===list[i]) && (name==='tax_rate[]'||name==='unit[]')){
+            const opt=document.createElement('option');opt.value=list[i];opt.textContent=list[i]+(name==='tax_rate[]'?' %':'');el.add(opt);
+          }
+          el.value=(!taxEnabled && name==='tax_rate[]') ? '0' : (!taxEnabled && name==='tax_mode[]') ? 'taxable' : list[i];
+        }
+      }
+    }
+    newCustomer.hidden=!stored.customerOpen;
+    toggleCustomer.setAttribute('aria-expanded',String(stored.customerOpen));
+    toggleCustomer.textContent=stored.customerOpen?'Kundenerfassung schliessen':'+ Kunde direkt erfassen';
+    changed=true;autosaveVersion++;
+    saveStatus.textContent='Lokale Eingaben wiederhergestellt. Automatisches Speichern aktiv.';
+    renderCustomerSummary();renderDueHint();recalc();scheduleAutosave();
+  }
+  function serverReady(){
+    const hasCustomer=(!newCustomer.hidden && newCustomerName.value.trim()) ||
+      (newCustomer.hidden && customer.value);
+    const hasLine=[...tbody.querySelectorAll('[name="description[]"]')].some(e=>e.value.trim());
+    const validNumber=!numberField.value.trim() || /^[A-Za-z0-9][A-Za-z0-9 ._-]{0,39}$/.test(numberField.value.trim());
+    const dates=['invoice-date','due-date'].every(id=>Boolean(getDate(document.getElementById(id).value)));
+    return hasCustomer&&hasLine&&dates&&validNumber&&form.checkValidity();
+  }
+  function scheduleAutosave(){
+    clearTimeout(autosaveTimer);
+    if(!changed||sending)return;
+    if(!serverReady()){
+      saveStatus.textContent='Zwischengespeichert im Browser – Kundenangaben und Position ergänzen.';
+      saveStatus.classList.remove('error');return;
+    }
+    saveStatus.textContent='Änderungen erkannt – Autospeichern …';
+    autosaveTimer=setTimeout(()=>{void autosaveDraft();},1500);
+  }
+  async function autosaveDraft(){
+    clearTimeout(autosaveTimer);
+    if(!changed||sending||!serverReady())return;
+    if(autosavePromise)return autosavePromise;
+    const revision=autosaveVersion;
+    const oldKey=draftKey();
+    const payload=new FormData(form);
+    saveStatus.textContent='Entwurf wird automatisch gespeichert …';
+    autosavePromise=(async()=>{
+      const response=await fetch(SWISS_BASE+'/api/invoices/autosave',{
+        method:'POST',body:payload,credentials:'same-origin'});
+      const result=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(result.detail||'Autospeichern fehlgeschlagen.');
+      const originalId=form.querySelector('[name="id"]').value;
+      form.querySelector('[name="id"]').value=String(result.id);
+      numberField.value=result.number;
+      numberField.required=true;
+      editing=true;
+      if(!originalId){
+        history.replaceState(null,'',SWISS_BASE+'/invoices/'+result.id+'/edit');
+      }
+      if(!newCustomer.hidden && Number(result.customer_id)>0 &&
+          ![...customer.options].some(o=>o.value===String(result.customer_id))){
+        const option=document.createElement('option');option.value=String(result.customer_id);
+        option.textContent=newCustomerName.value.trim()||'Neuer Kunde';customer.add(option);
+        customers.push({id:result.customer_id,name:option.textContent,zip:'',city:'',country:'CH'});
+      }
+      if(!newCustomer.hidden && result.customer_id){
+        customer.value=String(result.customer_id);
+        newCustomer.hidden=true;newCustomerName.value='';
+        toggleCustomer.setAttribute('aria-expanded','false');
+        toggleCustomer.textContent='+ Kunde direkt erfassen';
+      }
+      clearLocalDraft(oldKey);
+      if(revision===autosaveVersion){
+        changed=false;
+        clearLocalDraft();
+        feedback('');
+        saveStatus.textContent='Automatisch gespeichert um '+result.saved_at+' · Entwurf';
+        saveStatus.classList.remove('error');
+      }else{
+        persistLocalDraft();scheduleAutosave();
+      }
+      renderCustomerSummary();recalc();
+    })().catch(error=>{
+      saveStatus.textContent='Autospeichern nicht möglich: '+(error.message||'Netzwerkfehler')+'. Eingaben bleiben im Browser erhalten.';
+      saveStatus.classList.add('error');
+    }).finally(()=>{autosavePromise=null;});
+    return autosavePromise;
+  }
+  // Bei durchgehendem Tippen auch ohne Eingabepause regelmaessig sichern.
+  setInterval(()=>{if(changed&&!autosavePromise&&serverReady()&&!sending)void autosaveDraft();},20000);
   form.addEventListener('submit',event => {
     const preview=event.submitter===previewButton;
+    if(!preview && autosavePromise){
+      event.preventDefault();
+      const button=event.submitter||document.getElementById('save-invoice');
+      autosavePromise.then(()=>form.requestSubmit(button));
+      return;
+    }
+    clearTimeout(autosaveTimer);
     const number=numberField.value.trim();
     if ((number && !/^[A-Za-z0-9][A-Za-z0-9 ._-]{0,39}$/.test(number)) || (editing && !number)) {
       event.preventDefault();feedback('Bitte eine gueltige Belegnummer ohne Sonderzeichen eingeben.',true);numberField.focus();return;
@@ -462,6 +660,7 @@ const SWISS_BASE = document.querySelector('meta[name="swiss-invoice-base"]')?.ge
     sending=true;const button=document.getElementById('save-invoice');button.disabled=true;button.textContent='Entwurf wird gespeichert ...';
   });
   window.addEventListener('beforeunload',event => {if(changed && !sending){event.preventDefault();event.returnValue='';}});
+  window.addEventListener('pagehide',()=>{if(sending)clearLocalDraft();});
   document.addEventListener('keydown',event => {
     if ((event.ctrlKey||event.metaKey) && event.key.toLowerCase()==='s') {
       event.preventDefault();form.requestSubmit(document.getElementById('save-invoice'));
@@ -474,4 +673,5 @@ const SWISS_BASE = document.querySelector('meta[name="swiss-invoice-base"]')?.ge
   renderCustomerSummary();
   renderDueHint();
   recalc();
+  restoreLocalDraft();
 })();

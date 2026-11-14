@@ -6,7 +6,8 @@ const SWISS_BASE = document.querySelector('meta[name="swiss-invoice-base"]')?.ge
   if (!root) return;
   const $ = id => document.getElementById(id);
   const paper = $('designer-paper'), layer = $('designer-layer'), form = $('designer-save-form');
-  const LABELS = {logo:'Firmenlogo',sender:'Absender',recipient:'Empfänger',title:'Rechnungstitel',number:'Rechnungsnummer',dates:'Datumsangaben',subject:'Betreff',table:'Positionstabelle',totals:'Total und MWST',notes:'Bemerkungen',terms:'Zahlungsbedingungen',footer:'Fusszeile',uid:'UID / MWST',text:'Eigener Text',line:'Linie',box:'Farbfläche',image:'Eigenes Bild'};
+  const taxEnabled = root.dataset.taxRegistered === '1';
+  const LABELS = {logo:'Firmenlogo',sender:'Absender',recipient:'Empfänger',title:'Rechnungstitel',number:'Rechnungsnummer',dates:'Datumsangaben',subject:'Betreff',table:'Positionstabelle',totals:taxEnabled?'Total und MWST':'Total',notes:'Bemerkungen',terms:'Zahlungsbedingungen',footer:'Fusszeile',uid:taxEnabled?'UID / MWST':'UID',text:'Eigener Text',line:'Linie',box:'Farbfläche',image:'Eigenes Bild'};
   const REQUIRED = new Set(['sender','recipient','title','number','dates','table','totals']);
   const MULTIPLE = new Set(['text','image','box','line']);
   const minimum = {sender:[39,22],recipient:[39,22],title:[32,12],number:[26,8],dates:[40,22],table:[135,23],totals:[80,25]};
@@ -22,7 +23,9 @@ const SWISS_BASE = document.querySelector('meta[name="swiss-invoice-base"]')?.ge
   }
   function markDirty() {
     dirty=true;
-    const first=blocks.filter(b=>!['box','line'].includes(b.kind));
+    // Ganzseitige Bilder und randlose Logos duerfen absichtlich hinter anderen Feldern liegen.
+    const first=blocks.filter(b=>!['box','line'].includes(b.kind) &&
+      !(['logo','image'].includes(b.kind) && (b.x<0 || b.y<0 || b.w>=180 || b.h>=200)));
     let collision=null;
     for(let i=0;i<first.length&&!collision;i++)for(let j=i+1;j<first.length;j++){
       const a=first[i],b=first[j];
@@ -38,28 +41,37 @@ const SWISS_BASE = document.querySelector('meta[name="swiss-invoice-base"]')?.ge
   function setClean() {dirty=false;$('designer-status').textContent='Layout gespeichert';$('designer-status').classList.remove('dirty');}
   function bounds(b){
     const min=minimum[b.kind]||[3,2];
-    b.w=clamp(Math.round(b.w*10)/10,min[0],208);
-    b.h=clamp(Math.round(b.h*10)/10,min[1],295);
-    b.x=clamp(Math.round(b.x*10)/10,1,209-b.w);
-    b.y=clamp(Math.round(b.y*10)/10,1,Math.min(296-b.h,b.kind==='table'?241:296));
+    if(['logo','image'].includes(b.kind)){
+      b.w=clamp(Math.round(b.w*10)/10,min[0],300);
+      b.h=clamp(Math.round(b.h*10)/10,min[1],330);
+      b.x=clamp(Math.round(b.x*10)/10,Math.max(-30,5-b.w),205);
+      b.y=clamp(Math.round(b.y*10)/10,Math.max(-30,5-b.h),292);
+    }else{
+      b.w=clamp(Math.round(b.w*10)/10,min[0],208);
+      b.h=clamp(Math.round(b.h*10)/10,min[1],295);
+      b.x=clamp(Math.round(b.x*10)/10,1,209-b.w);
+      b.y=clamp(Math.round(b.y*10)/10,1,Math.min(296-b.h,b.kind==='table'?241:296));
+    }
   }
   function entryText(b) {
     const co=root.dataset.company || 'Mein Geschäft';
-    const texts={logo:'Logo – noch keines hinterlegt',sender:co+'\n'+root.dataset.address+'\ninfo@beispiel.ch',recipient:'Musterkunde AG\nMusterstrasse 8\n8000 Zürich',title:root.dataset.title||'Rechnung',number:'Nr. RE-2026-00001',dates:'Datum: 08.11.2026\nFällig: 08.12.2026\nLeistung: 08.11.2026',subject:'Projekt / Betreff',uid:'UID / MWST: CHE-000.000.000',notes:root.dataset.notes||'Besten Dank für Ihren Auftrag.',terms:root.dataset.terms||'Zahlbar innert 30 Tagen.',footer:root.dataset.footer||'Vielen Dank für Ihren Auftrag.',text:b.text||'Doppelklicken und rechts eigenen Text eingeben'};
+    const texts={logo:'Logo – noch keines hinterlegt',sender:co+'\n'+root.dataset.address+'\ninfo@beispiel.ch',recipient:'Musterkunde AG\nMusterstrasse 8\n8000 Zürich',title:root.dataset.title||'Rechnung',number:'Nr. RE-2026-00001',dates:'Datum: 08.11.2026\nFällig: 08.12.2026\nLeistung: 08.11.2026',subject:'Projekt / Betreff',uid:taxEnabled?'UID / MWST: CHE-000.000.000':'UID: CHE-000.000.000',notes:root.dataset.notes||'Besten Dank für Ihren Auftrag.',terms:root.dataset.terms||'Zahlbar innert 30 Tagen.',footer:root.dataset.footer||'Vielen Dank für Ihren Auftrag.',text:b.text||'Doppelklicken und rechts eigenen Text eingeben'};
     let val=texts[b.kind]||'';
     if(b.kind==='text')val=val.replaceAll('{kunde}','Musterkunde AG').replaceAll('{nummer}','RE-2026-00001').replaceAll('{firma}',co).replaceAll('{datum}','08.11.2026').replaceAll('{faellig}','08.12.2026').replaceAll('{betrag}','318.90').replaceAll('{waehrung}','CHF');
     return val;
   }
   function contentFor(b, host){
     if(b.kind==='logo' && root.dataset.logo==='1'){
-      const img=document.createElement('img');img.alt='Firmenlogo';img.src=SWISS_BASE + '/media/logo';host.append(img);
+      const img=document.createElement('img');img.alt='Firmenlogo';img.src=SWISS_BASE + '/media/logo';img.style.objectFit=b.fit||'contain';host.append(img);
     } else if(b.kind==='image' && /^[a-f0-9]{32}\.jpg$/.test(b.asset||'')){
-      const img=document.createElement('img');img.alt='Eigenes Bild';img.src=SWISS_BASE + '/templates/designer/image/'+b.asset;host.append(img);
+      const img=document.createElement('img');img.alt='Eigenes Bild';img.src=SWISS_BASE + '/templates/designer/image/'+b.asset;img.style.objectFit=b.fit||'contain';host.append(img);
     } else if(b.kind==='table'){
       // Static example: dynamic invoice lines are generated by the PDF renderer.
       host.innerHTML='<table class="designer-mini-table"><thead><tr><th>Beschreibung</th><th>Menge</th><th>Preis</th><th>Total</th></tr></thead><tbody><tr><td>Beratung</td><td>2 Std.</td><td>125.00</td><td>250.00</td></tr><tr><td>Projektpauschale</td><td>1 Stk.</td><td>45.00</td><td>45.00</td></tr></tbody></table>';
     } else if(b.kind==='totals'){
-      host.innerHTML='<div class="designer-mini-total"><span>Zwischensumme</span><b>295.00 CHF</b></div><div class="designer-mini-total"><span>MWST 8.1 %</span><b>23.90 CHF</b></div><div class="designer-mini-total"><span>TOTAL</span><b>318.90 CHF</b></div>';
+      host.innerHTML=taxEnabled
+        ? '<div class="designer-mini-total"><span>Zwischensumme</span><b>295.00 CHF</b></div><div class="designer-mini-total"><span>MWST 8.1 %</span><b>23.90 CHF</b></div><div class="designer-mini-total"><span>TOTAL</span><b>318.90 CHF</b></div>'
+        : '<div class="designer-mini-total"><span>Zwischensumme</span><b>295.00 CHF</b></div><div class="designer-mini-total"><span>TOTAL</span><b>295.00 CHF</b></div>'; 
     } else if(!['line','box','image'].includes(b.kind)){host.textContent=entryText(b);}
   }
   function place(node,b){
@@ -104,6 +116,14 @@ const SWISS_BASE = document.querySelector('meta[name="swiss-invoice-base"]')?.ge
     $('designer-selected-kind').textContent=LABELS[b.kind]+(b.locked?' · Gesperrt':'');
     for(const prop of ['x','y','w','h','size','color','align'])$('d-'+prop).value=b[prop];
     $('d-text-block').hidden=b.kind!=='text';$('d-image-block').hidden=b.kind!=='image';
+    const picture=['logo','image'].includes(b.kind);
+    $('d-image-settings').hidden=!picture;
+    $('d-fit').value=b.fit||'contain';
+    for(const id of ['x','y','w','h']){
+      const field=$('d-'+id);
+      field.min=picture?(id==='x'||id==='y'?-30:id==='w'?3:2):1;
+      field.max=picture?(id==='x'?205:id==='y'?292:id==='w'?300:330):(id==='x'?209:id==='y'?296:id==='w'?208:295);
+    }
     if(b.kind==='text')$('d-text').value=b.text;
     $('d-delete').disabled=REQUIRED.has(b.kind);
     $('d-lock').textContent=b.locked?'Entsperren':'Sperren';
@@ -118,7 +138,7 @@ const SWISS_BASE = document.querySelector('meta[name="swiss-invoice-base"]')?.ge
       if(existing){select(existing.id);return;}
     }
     checkpoint();
-    const p=palette[kind];const b={id:'b'+Math.random().toString(36).slice(2,12),kind,x:p[0],y:p[1],w:p[2],h:p[3],size:kind==='title'?24:9,color:kind==='box'?'#dbeafe':(['title','table','totals'].includes(kind)?'#2563eb':'#14233c'),align:'left',text:kind==='text'?'Vielen Dank für Ihren Auftrag!':'',asset:'',locked:false};
+    const p=palette[kind];const b={id:'b'+Math.random().toString(36).slice(2,12),kind,x:p[0],y:p[1],w:p[2],h:p[3],size:kind==='title'?24:9,color:kind==='box'?'#dbeafe':(['title','table','totals'].includes(kind)?'#2563eb':'#14233c'),align:'left',text:kind==='text'?'Vielen Dank für Ihren Auftrag!':'',asset:'',fit:'contain',locked:false};
     blocks.push(b);selected=b.id;render();markDirty();
   }
   function remove(){const b=byId(selected);if(!b||REQUIRED.has(b.kind))return;checkpoint();blocks=blocks.filter(n=>n.id!==selected);selected=null;render();markDirty();}
@@ -144,6 +164,18 @@ const SWISS_BASE = document.querySelector('meta[name="swiss-invoice-base"]')?.ge
       render();markDirty();
     });
   }
+  $('d-fit').addEventListener('change',e=>{
+    const b=byId(selected);if(!b||!['logo','image'].includes(b.kind))return;
+    checkpoint();b.fit=e.target.value;render();markDirty();
+  });
+  $('d-full-width').addEventListener('click',()=>{
+    const b=byId(selected);if(!b||!['logo','image'].includes(b.kind))return;
+    checkpoint();Object.assign(b,{x:-3,w:216,fit:'cover'});bounds(b);render();markDirty();
+  });
+  $('d-full-page').addEventListener('click',()=>{
+    const b=byId(selected);if(!b||!['logo','image'].includes(b.kind))return;
+    checkpoint();Object.assign(b,{x:-3,y:-3,w:216,h:303,fit:'cover'});bounds(b);render();markDirty();
+  });
   $('d-text').addEventListener('change',e=>{const b=byId(selected);if(!b||b.kind!=='text')return;checkpoint();b.text=e.target.value.slice(0,600);render();markDirty();});
   function pointerStart(e){
     if(e.button!==0)return;

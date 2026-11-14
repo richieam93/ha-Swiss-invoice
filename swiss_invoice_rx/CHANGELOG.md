@@ -1,5 +1,19 @@
 # Änderungsprotokoll
 
+## 2.11.0 – Rabatte, MWST und Einheitenauswahl
+
+- Positionsrabatte sowie Gesamtrabatt im Editor, in der Detailansicht und in beiden PDF-Layouts sichtbar
+- Ein- und Ausschalten der MWST je Geschäft; ausgeblendete MWST-Felder und steuerfreie Entwurfsberechnung bei deaktivierter Registrierung
+- Einheitenauswahl im Rechnungseditor als Dropdown mit Unterstützung bestehender benutzerdefinierter Einheiten
+
+
+## 2.10.0 – Layoutgestaltung und Rechnungseditor
+
+- Firmenlogos im PDF-Designer frei skalieren und über den A4-Rand hinaus platzieren
+- Vorlagen-Studio: Breite, Höhe, Position und Bildanpassung für Rechnungslogos
+- Artikel direkt im Rechnungseditor anlegen und als Position übernehmen
+- Automatisches Speichern bearbeitbarer Rechnungsentwürfe; lokale Zwischenspeicherung unvollständiger Eingaben
+
 ## 2.9.2 – Benutzerkonten vollständig löschen
 
 - Letzter Geschäftszugriff entfernt: Benutzerkonto wird gelöscht, E-Mail erneut verwendbar

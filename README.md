@@ -6,7 +6,9 @@
 
 - Rechnungen, Offerten und Gutschriften als PDF mit Schweizer QR-Zahlteil
 - Kunden, Artikel, Inventar, Zahlungen und Mahnungen
-- Vorlagen-Studio und frei gestaltbarer A4-PDF-Designer
+- Positions- und Gesamtrabatte, zuschaltbare MWST und Einheitenauswahl
+- Artikel-Schnellerfassung und Autospeichern von Rechnungsentwürfen
+- Vorlagen-Studio und frei gestaltbarer A4-PDF-Designer mit randlosen Logos
 - Mehrere Geschäfte mit getrennten Daten und Benutzerrechten
 - Eigene Geschäftseinrichtung für neue Benutzer
 - Bankdatei-Import (camt.053/054), Berichte und CSV-Export

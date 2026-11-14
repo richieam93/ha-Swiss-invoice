@@ -28,7 +28,7 @@ from starlette.middleware.sessions import SessionMiddleware
 
 from .db import initialize, transaction, one, allrows, audit, db_connect, next_user_id
 from .business_profile import BUSINESS_TYPES, parse_profile
-from .billing import (dec, cents, money, num, percent, hash_password, check_password,
+from .billing import (dec, cents, money, num, percent, hash_password, check_password, discount_details,
                       future, valid_date, safe_color, invoice_status)
 from .billing import summarize
 from .pdf import make_pdf, make_reminder_pdf, make_qr_test_pdf
@@ -301,17 +301,40 @@ def create_app(data_dir=None):
             row = {k: arrays[k][i] if i < len(arrays[k]) else '' for k in fields}
             if kind != 'credit' and dec(row['qty']) < 0:
                 raise ValueError('Negative Mengen sind nur auf Gutschriften erlaubt')
-            if not tax_registered and (row['tax_mode'] or 'taxable') == 'taxable' and dec(row['tax_rate'] or 0) != 0:
-                raise ValueError('Firma ist nicht MWST-pflichtig: MWST-Satz 0 % waehlen')
+            if not tax_registered:
+                # Invoices issued without a VAT registration can never contain
+                # a selectable or payable VAT amount, even via stale item data.
+                row['tax_rate']='0'
+                row['tax_mode']='taxable'
             lines.append(row)
         return lines
+
+    def recalculate_drafts_without_vat(con, cid):
+        """Only draft amounts/lines are updated; archived PDFs stay immutable."""
+        drafts=allrows(con,"SELECT id,discount FROM invoices WHERE company_id=? AND status='draft'",(cid,))
+        for inv in drafts:
+            original=[dict(r) for r in allrows(con,
+                'SELECT * FROM invoice_lines WHERE company_id=? AND invoice_id=? ORDER BY position',
+                (cid,inv['id']))]
+            if not original:
+                continue
+            for row in original:
+                row['tax_rate']='0';row['tax_mode']='taxable'
+            result=summarize(original,inv['discount'])
+            for old,new in zip(original,result['lines']):
+                con.execute('UPDATE invoice_lines SET tax_rate=?,tax_mode=?,line_net=? WHERE id=? AND company_id=?',
+                            ('0','taxable',new['line_net'],old['id'],cid))
+            con.execute('UPDATE invoices SET subtotal=?,tax_total=?,total=?,tax_breakdown=?,updated_at=CURRENT_TIMESTAMP '
+                        "WHERE id=? AND company_id=? AND status='draft'",
+                        (result['subtotal'],result['tax_total'],result['total'],
+                         json.dumps(result['tax_breakdown']),inv['id'],cid))
 
     def customer_snapshot(con, cid, customer_id):
         if not customer_id:
             raise ValueError('Bitte einen Kunden waehlen')
         return fetch(con, 'customers', cid, int(customer_id))
 
-    def write_invoice(con, cid, data, kind, company, existing=None, author=None):
+    def write_invoice(con, cid, data, kind, company, existing=None, author=None, silent=False):
         cust_id = data.get('customer_id')
         if data.get('new_customer_name'):
             cd = {x.replace('new_customer_',''):str(data.get(x,'')) for x in (
@@ -358,7 +381,8 @@ def create_app(data_dir=None):
             con.execute('''INSERT INTO invoice_lines(company_id,invoice_id,item_id,position,description,qty,unit,price,tax_rate,tax_mode,discount,line_net)
                            VALUES(?,?,?,?,?,?,?,?,?,?,?,?)''',
                         (cid,iid,item_id,pos,ln['description'],ln['qty'],ln['unit'],ln['price'],ln['tax_rate'],ln['tax_mode'],ln['discount'],ln['line_net']))
-        audit(con,cid,author,'Beleg gespeichert',f"{kind} #{iid}")
+        if not silent:
+            audit(con,cid,author,'Beleg gespeichert',f"{kind} #{iid}")
         return iid
 
     def duplicate(con, cid, src, kind, company, uid, credit=False):
@@ -1375,6 +1399,51 @@ def create_app(data_dir=None):
             notify(request,str(exc),'error')
             return redirect(f'/items/{rid}/edit' if rid else '/items/new')
 
+    @app.post('/api/items/quick-create')
+    async def item_quick_create(request:Request):
+        user,co=current(request,'editor')
+        data=await form(request)
+        try:
+            name=str(data.get('name','')).strip()
+            if not name or len(name)>180:
+                raise ValueError('Artikelname: 1 bis 180 Zeichen erforderlich.')
+            kind=str(data.get('kind','product'))
+            if kind not in ('product','service'):
+                raise ValueError('Nur Produkt oder Dienstleistung erlaubt.')
+            mode=str(data.get('tax_mode','taxable'))
+            if mode not in ('taxable','exempt','excluded'):
+                raise ValueError('Ungueltige MWST-Behandlung.')
+            price=num(data.get('price','0')); cost=num(data.get('cost','0'))
+            tax=dec(data.get('tax_rate','0'))
+            stock=dec(data.get('stock','0'))
+            reorder=dec(data.get('reorder_point','5'))
+            if (dec(price)<0 or dec(price)>999999999 or dec(cost)<0 or dec(cost)>999999999 or
+                    stock<0 or stock>1000000 or reorder<0 or reorder>1000000 or tax<0 or tax>100):
+                raise ValueError('Preis, MWST oder Lagerbestand ausserhalb des erlaubten Bereichs.')
+            if not co['tax_registered'] and mode=='taxable' and tax!=0:
+                raise ValueError('Ohne MWST-Registrierung ist der Steuersatz 0 % erforderlich.')
+            sku=str(data.get('sku','')).strip()
+            if len(sku)>60:
+                raise ValueError('Artikelnummer zu lang (max. 60 Zeichen).')
+            with transaction(db_path,True) as con:
+                if sku and one(con,'SELECT id FROM items WHERE company_id=? AND sku=?',(co['id'],sku)):
+                    raise ValueError('Diese Artikelnummer ist bereits vergeben.')
+                if not sku:
+                    sku='ART-'+uuid.uuid4().hex[:10].upper()
+                image=item_image(con,co['id'],data.get('image'))
+                con.execute('''INSERT INTO items(company_id,sku,name,kind,category,description,cost,price,tax_rate,
+                            tax_mode,stock,track_stock,reorder_point,image_path)
+                            VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)''',
+                            (co['id'],sku,name,kind,str(data.get('category',''))[:100],
+                             str(data.get('description',''))[:2000],cost,price,str(tax),mode,str(stock),
+                             1 if data.get('track_stock') else 0,str(reorder),image))
+                iid=con.execute('SELECT last_insert_rowid()').fetchone()[0]
+                item=dict(fetch(con,'items',co['id'],iid))
+                audit(con,co['id'],user['id'],'Artikel direkt erfasst',f'{sku} / {name}')
+            return {'item':item}
+        except (ValueError,sqlite3.IntegrityError) as exc:
+            raise HTTPException(422,str(exc)) from exc
+
     @app.post('/items/{rid}/archive')
     async def item_archive(request:Request,rid:int):
         user,co=current(request,'editor');await form(request)
@@ -1617,6 +1686,31 @@ def create_app(data_dir=None):
         except (ValueError,OverflowError,TypeError) as exc:
             raise HTTPException(422,'PDF-Vorschau: '+str(exc))
 
+    @app.post('/api/invoices/autosave')
+    async def invoice_autosave(request:Request):
+        # Keine Freigabe, kein PDF-Archiv, keine Lagerbuchung: ausschliesslich
+        # bearbeitbare Entwuerfe. Teilweise Eingaben bleiben zunaechst lokal.
+        user,co=current(request,'editor')
+        data=await form(request)
+        kind=str(data.get('kind','invoice'))
+        if kind not in ('invoice','quote','credit'):
+            raise HTTPException(400,'Ungueltige Belegart.')
+        try:
+            rid=int(data.get('id') or 0)
+            if rid<0:raise ValueError('Ungueltiger Entwurf.')
+            if not any(v.strip() for v in data.getlist('description[]')):
+                raise ValueError('Mindestens eine Position erforderlich.')
+            with transaction(db_path,True) as con:
+                existing=fetch(con,'invoices',co['id'],rid) if rid else None
+                if existing and (existing['status']!='draft' or existing['kind']!=kind):
+                    raise HTTPException(409,'Dieser Beleg kann nicht mehr bearbeitet werden.')
+                iid=write_invoice(con,co['id'],data,kind,co,existing,user['id'],silent=True)
+                record=fetch(con,'invoices',co['id'],iid)
+            return {'id':iid,'number':record['number'],'customer_id':record['customer_id'],
+                    'status':'draft','saved_at':datetime.now().strftime('%H:%M:%S')}
+        except (ValueError,OverflowError,sqlite3.IntegrityError) as exc:
+            raise HTTPException(422,str(exc)) from exc
+
     @app.post('/invoices/save')
     async def invoice_save(request:Request):
         user,co=current(request,'editor')
@@ -1676,7 +1770,11 @@ def create_app(data_dir=None):
             items_by_id={i:fetch(con,'items',co['id'],i) for i in used_ids}
             preflight=invoice_checks(inv,co,cust,lines,items_by_id) if inv['status']=='draft' else []
         inv['display_status']=invoice_status(inv)
+        snapshot=json.loads(inv.get('company_snapshot') or '{}')
+        registered=bool(snapshot.get('tax_registered',co['tax_registered'])) if inv['status']!='draft' else bool(co['tax_registered'])
+        discounts=discount_details(lines,inv.get('discount','0'))
         return view(request,'invoice_detail.html',invoice=inv,customer=cust,lines=lines,payments=payments,
+                    tax_visible=registered,discounts=discounts,
                     reminders=reminders,recurring=recurring,preflight=preflight,balance=cents(inv['total'])-cents(inv['paid_total']))
 
     @app.post('/invoices/{rid}/issue')
@@ -2445,7 +2543,9 @@ def create_app(data_dir=None):
                         qr_type,qr_message,logo,draft_mark]
                 if not values[0]:raise ValueError('Firmenname fehlt')
                 if values[11] not in ('CHF','EUR'):raise ValueError('Waehrung CHF oder EUR')
-                con.execute('UPDATE companies SET '+','.join(f+'=?' for f in fields)+' WHERE id=?',(*values,co['id']))
+                con.execute('UPDATE companies SET '+','.join(f'{f}=?' for f in fields)+' WHERE id=?',(*values,co['id']))
+                if not data.get('tax_registered') and co['tax_registered']:
+                    recalculate_drafts_without_vat(con,co['id'])
                 audit(con,co['id'],user['id'],'Firmeneinstellungen','inkl. Nummernkreis und QR-Einstellungen aktualisiert')
             notify(request,'Firmendaten, Nummernkreise und QR-Einstellungen gespeichert')
         except (ValueError,sqlite3.IntegrityError) as exc:
@@ -2557,11 +2657,29 @@ def create_app(data_dir=None):
             body_size=int(data.get('template_body_size',9))
         except (ValueError,TypeError) as exc:
             raise ValueError('Ungueltige Schrift- oder Logogroesse.') from exc
-        if logo_size not in (80,110,140) or body_size not in (8,9,10):
+        if not 30 <= logo_size <= 640 or body_size not in (8,9,10):
             raise ValueError('Bitte eine erlaubte Schrift- und Logogroesse waehlen.')
+        logo_geometry={}
+        for key,default,minimum,maximum in (
+            ('template_logo_x_mm','15',-30,205),
+            ('template_logo_y_mm','16',-30,292),
+            ('template_logo_height_mm','19',5,330),
+        ):
+            try:
+                value=dec(data.get(key,default))
+            except (ValueError,TypeError) as exc:
+                raise ValueError('Ungueltige Logoposition oder Groesse.') from exc
+            if not minimum <= value <= maximum:
+                raise ValueError('Logoposition oder Hoehe ist ausserhalb des erlaubten Bereichs.')
+            logo_geometry[key]=str(value)
+        fit=str(data.get('template_logo_fit','contain'))
+        if fit not in ('contain','cover','stretch'):
+            raise ValueError('Ungueltige Logoanpassung.')
+        logo_geometry['template_logo_fit']=fit
         options={
             'template_table_style':table_style,
             'template_logo_size':logo_size,
+            **logo_geometry,
             'template_body_size':body_size,
             'template_style':style,
             'template_accent':safe_color(data.get('template_accent','#2563eb')),

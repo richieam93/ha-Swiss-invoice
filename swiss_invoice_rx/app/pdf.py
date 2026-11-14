@@ -9,7 +9,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 from reportlab.pdfbase.pdfmetrics import stringWidth
-from .billing import money, cents
+from .billing import money, cents, discount_details, discount_adjustment
 from .qr import build_payload, qr_image, normalize_iban
 
 W, H = A4
@@ -100,16 +100,33 @@ def section_header(c, inv, company, customer, page=1, preview=False):
         c.rect(0, H - 13, W, 13, stroke=0, fill=1)
     mirror = company.get('template_header_layout', 'standard') == 'mirrored'
     logo = company.get('logo_path', '')
+    # Groesse, absolute vertikale Position und Abstand zur jeweiligen A4-Kante.
+    # Negative Abstaende sind fuer randabfallende Logos zulaessig.
     logo_size = int(company.get('template_logo_size',110) or 110)
-    if logo_size not in (80,110,140):logo_size=110
-    logo_x = W-M-logo_size if mirror else M
+    logo_size=max(30,min(640,logo_size))
+    logo_edge_x = max(-30,min(205,float(company.get('template_logo_x_mm',15) or 0)))*MM
+    logo_y = max(-30,min(292,float(company.get('template_logo_y_mm',16) or 0)))*MM
+    logo_h = max(5,min(330,float(company.get('template_logo_height_mm',19) or 0)))*MM
+    logo_x = W-logo_edge_x-logo_size if mirror else logo_edge_x
     if company.get('template_show_logo', 1) and logo:
         p = Path(logo)
         if p.is_file():
             try:
-                c.drawImage(str(p), logo_x, H-99, width=logo_size, height=54,
-                            preserveAspectRatio=True, anchor='sw', mask='auto')
-            except (OSError, ValueError):
+                img=ImageReader(str(p));iw,ih=img.getSize()
+                fit=company.get('template_logo_fit','contain')
+                if fit=='stretch':
+                    c.drawImage(img,logo_x,H-logo_y-logo_h,width=logo_size,height=logo_h,mask='auto')
+                else:
+                    ratio=(max(logo_size/iw,logo_h/ih) if fit=='cover' else min(logo_size/iw,logo_h/ih))
+                    nw,nh=iw*ratio,ih*ratio
+                    if fit=='cover':
+                        c.saveState()
+                        clip=c.beginPath();clip.rect(logo_x,H-logo_y-logo_h,logo_size,logo_h)
+                        c.clipPath(clip,stroke=0,fill=0)
+                    c.drawImage(img,logo_x+(logo_size-nw)/2,H-logo_y-(logo_h+nh)/2,
+                                width=nw,height=nh,mask='auto')
+                    if fit=='cover':c.restoreState()
+            except (OSError,ValueError):
                 pass
     else:
         if mirror:
@@ -150,7 +167,7 @@ def section_header(c, inv, company, customer, page=1, preview=False):
             right(c, W-M, H-307, 'Leistungsdatum: ' + inv['service_date'], 9)
         right(c, W-M, H-324, 'Faellig: ' + inv['due_date'], 9)
         if company.get('uid'):
-            txt(c, M, H-(342 if len(title_lines)>1 else 334), 'UID / MWST: ' + company['uid'], 8, MUTED)
+            txt(c, M, H-(342 if len(title_lines)>1 else 334), ('UID / MWST: ' if company.get('tax_registered',1) else 'UID: ') + company['uid'], 8, MUTED)
     else:
         txt(c, M, H-166, 'Fortsetzung ' + inv['number'], 12, accent, True)
     c.setStrokeColor(colors.HexColor('#e2e8f0'))
@@ -211,6 +228,9 @@ def invoice_pages(c, inv, company, customer, lines, preview=False):
     table_style=company.get('template_table_style','lines')
     body_size=int(company.get('template_body_size',9) or 9)
     if body_size not in (8,9,10): body_size=9
+    discounts = discount_details(lines, inv.get('discount','0'))
+    tax_enabled = bool(company.get('tax_registered', 1))
+    has_global = Decimal(discounts['global_percent']) != 0
     page = 1
     section_header(c, inv, company, customer, page, preview=preview)
     if inv.get('subject'):
@@ -234,31 +254,45 @@ def invoice_pages(c, inv, company, customer, lines, preview=False):
             txt(c, M+12, y-12-i*row_gap, part, body_size)
         right(c, 359, y-13, f"{line['qty']} {line['unit']}", body_size)
         right(c, 431, y-13, money(line['price']), body_size)
-        right(c, W-M-11, y-13, money(line['line_net']), body_size, INK, True)
-        if Decimal(str(line['discount'])) or line.get('tax_mode','taxable') != 'taxable':
-            tax_text = {'exempt':'MWST befreit','excluded':'MWST ausgenommen'}.get(line.get('tax_mode'), 'MWST '+str(line['tax_rate'])+' %')
-            txt(c, M+12, y-row_height+5, f"Rabatt {line['discount']} %  |  {tax_text}", 7, MUTED)
+        # Show each line *before* the global invoice discount. The final
+        # invoice-wide reduction is itemized once in the totals section.
+        position_discount = discounts['lines'][row_index]
+        right(c, W-M-11, y-13, money(position_discount['after']), body_size, INK, True)
+        annotations=[]
+        if Decimal(str(line.get('discount','0'))) != 0:
+            annotations.append(f"Positionsrabatt {line['discount']} % ({discount_adjustment(position_discount['discount'])} {inv['currency']})")
+        if tax_enabled and line.get('tax_mode','taxable') != 'taxable':
+            annotations.append({'exempt':'MWST befreit','excluded':'MWST ausgenommen'}.get(line.get('tax_mode'),''))
+        if annotations:
+            txt(c, M+12, y-row_height+5, '  |  '.join(annotations), 7, MUTED)
         if table_style=='lines':
             c.setStrokeColor(colors.HexColor('#ecf0f6'))
             c.line(M, y-row_height+2, W-M, y-row_height+2)
         y -= row_height
     tax_details = sorted(json.loads(inv['tax_breakdown'] or '{}').items(),
-                         key=lambda x: (x[0] in ('exempt','excluded'), x[0]))
+                         key=lambda x: (x[0] in ('exempt','excluded'), x[0])) if tax_enabled else []
     # Mehrere Steuersaetze muessen separat lesbar bleiben; bei einem Satz kann
     # der Benutzer auf eine einzelne MWST-Gesamtzeile wechseln.
     show_detail = bool(company.get('template_show_tax_breakdown', 1)) or len(tax_details) > 1
     tax_row_count = len(tax_details) if show_detail else (1 if tax_details else 0)
     note_lines = wrap_words(inv.get('notes') or '', 88)[:7] if inv.get('notes') else []
     show_terms = inv['kind'] == 'invoice' and bool(company.get('template_show_payment_terms', 1))
-    required = 120 + tax_row_count*17 + len(note_lines)*13 + (25 if show_terms else 0)
+    required = 120 + tax_row_count*17 + (36 if has_global else 0) + len(note_lines)*13 + (25 if show_terms else 0)
     if y-required < 78:
         c.showPage()
         page += 1
         section_header(c, inv, company, customer, page, preview=preview)
         y = H-215
     y -= 18
-    right(c, W-M-11, y, f"Zwischensumme     {money(inv['subtotal'])} {inv['currency']}", 10)
+    first_total = discounts['after_positions'] if has_global else inv['subtotal']
+    right(c, W-M-11, y, f"Zwischensumme     {money(first_total)} {inv['currency']}", 10)
     y -= 18
+    if has_global:
+        right(c, W-M-11, y,
+              f"Gesamtrabatt {discounts['global_percent']} %     {discount_adjustment(discounts['global_discount'])} {inv['currency']}", 9, MUTED)
+        y -= 18
+        right(c, W-M-11, y, f"Netto nach Rabatt     {money(inv['subtotal'])} {inv['currency']}", 9, MUTED)
+        y -= 18
     if not show_detail and tax_details:
         rate = tax_details[0][0]
         name = {'exempt':'MWST befreit', 'excluded':'MWST ausgenommen'}.get(rate, 'MWST gesamt ('+rate+' %)')

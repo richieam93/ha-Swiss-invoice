@@ -15,7 +15,16 @@ const SWISS_BASE = document.querySelector('meta[name="swiss-invoice-base"]')?.ge
     paper.dataset.header = $('tpl-header').value;
     paper.dataset.table = $('tpl-table').value;
     paper.style.setProperty('--studio-body-size', (Number($('tpl-body').value)+1)+'px');
-    paper.style.setProperty('--studio-logo-width', (Number($('tpl-logo-size').value)*1.08)+'px');
+    const logoWidth=Math.max(30,Number($('tpl-logo-size').value)||110);
+    paper.style.setProperty('--studio-logo-width', (logoWidth*1.08)+'px');
+    const previewLogo=$('studio-logo');
+    if(previewLogo){
+      previewLogo.style.width=(logoWidth*1.08)+'px';
+      previewLogo.style.height=(Math.max(5,Number($('tpl-logo-height').value)||19)*2.6)+'px';
+      previewLogo.style.maxWidth='none';previewLogo.style.maxHeight='none';
+      previewLogo.style.objectFit=$('tpl-logo-fit').value;
+      previewLogo.style.transform='translate('+((Number($('tpl-logo-x').value)||0)-15)*2.6+'px,'+((Number($('tpl-logo-y').value)||0)-16)*2.6+'px)';
+    }
     paper.style.setProperty('--studio-accent', style === 'modern' ? color : '#25354a');
     const kind = $('tpl-preview-kind').value;
     $('preview-title').textContent = kind === 'invoice' ? ($('tpl-title').value.trim() || 'Rechnung') :

@@ -1,5 +1,5 @@
 name: "Swiss-invoice-RX"
-version: "2.9.2"
+version: "2.11.0"
 slug: "swiss_invoice_rx"
 description: "Schweizer Rechnungen, QR-Zahlteile, Kunden und Inventar – lokal in Home Assistant"
 url: "https://github.com/richieam93/ha-Swiss-invoice"

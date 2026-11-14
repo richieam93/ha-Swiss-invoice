@@ -248,6 +248,6 @@ class BulkParser16Tests(unittest.TestCase):
             initialize(path)
             con=db_connect(path)
             try:
-                self.assertEqual(con.execute('PRAGMA user_version').fetchone()[0],15)
+                self.assertEqual(con.execute('PRAGMA user_version').fetchone()[0],16)
                 self.assertEqual(tuple(con.execute('SELECT name,payment_days FROM customers WHERE id=1').fetchone()),('Alt Kunde',0))
             finally:con.close()

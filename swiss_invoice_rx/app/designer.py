@@ -14,7 +14,7 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfbase.pdfmetrics import stringWidth
 
-from .billing import money
+from .billing import money, discount_details, discount_adjustment
 from .pdf import MM, INK, MUTED, col, party_lines
 
 PAGE_W, PAGE_H = 210, 297
@@ -24,7 +24,7 @@ REQUIRED = {'sender','recipient','title','number','dates','table','totals'}
 FLOW = {'table','totals','notes','terms'}
 LABELS = {'logo':'Logo','sender':'Absender','recipient':'Empfänger',
           'title':'Titel','number':'Rechnungsnummer','dates':'Datum und Fälligkeit',
-          'subject':'Betreff','table':'Positionstabelle','totals':'Betrag und MWST',
+          'subject':'Betreff','table':'Positionstabelle','totals':'Betrag und Rabatte',
           'notes':'Bemerkungen','terms':'Zahlungsbedingungen','footer':'Fusszeile',
           'uid':'UID / MWST','text':'Eigener Text','line':'Linie','box':'Farbfläche','image':'Eigenes Bild'}
 MIN_SIZES = {'table':(135,23),'totals':(80,25),'sender':(39,22),'recipient':(39,22),
@@ -83,7 +83,14 @@ def parse_layout(value):
             clean[key]=round(value,1)
         x,y,w,h=[clean[k] for k in ('x','y','w','h')]
         minw,minh=MIN_SIZES.get(kind,(3,2))
-        if x<1 or y<1 or w<minw or h<minh or x+w>209.1 or y+h>296.1 or (kind=='table' and y>241):
+        if kind in ('logo','image'):
+            # Bildelemente duerfen bis 30 mm ueber die Blattkante ragen (Beschnitt).
+            # Mindestens 5 mm muessen sichtbar bleiben, damit sie bedienbar bleiben.
+            if (x < -30 or y < -30 or x > 205 or y > 292 or
+                    w < minw or w > 300 or h < minh or h > 330 or
+                    x+w < 5 or y+h < 5):
+                raise ValueError(f'{LABELS[kind]}: Bildposition oder Groesse ausserhalb des erlaubten Bereichs.')
+        elif x<1 or y<1 or w<minw or h<minh or x+w>209.1 or y+h>296.1 or (kind=='table' and y>241):
             raise ValueError(f'{LABELS[kind]}: Element liegt ausserhalb von A4 oder ist zu klein.')
         sz=b.get('size',9)
         try:sz=int(sz)
@@ -105,6 +112,10 @@ def parse_layout(value):
         if asset and not re.fullmatch(r'[a-f0-9]{32}\.jpg',asset):
             raise ValueError('Bildkennung ist ungueltig.')
         clean['asset']=asset
+        fit=str(b.get('fit','contain'))
+        if fit not in ('contain','cover','stretch'):
+            raise ValueError('Bildanpassung nicht erlaubt.')
+        clean['fit']=fit
         clean['locked']=bool(b.get('locked',False))
         result.append(clean)
     if REQUIRED-kinds:
@@ -176,9 +187,20 @@ def _draw_image(c,b,path):
         # 'anchor' and negative baselines are handled by ReportLab; all images
         # are decoded to JPEG on upload, so PDF assets cannot embed scripts.
         img=ImageReader(str(path))
-        iw,ih=img.getSize();ratio=min(w/iw,h/ih)
-        nw,nh=iw*ratio,ih*ratio
-        c.drawImage(img,x+(w-nw)/2,A4[1]-y-(h+nh)/2,width=nw,height=nh,mask='auto')
+        iw,ih=img.getSize()
+        fit=b.get('fit','contain')
+        if fit=='stretch':
+            c.drawImage(img,x,A4[1]-y-h,width=w,height=h,mask='auto')
+        else:
+            ratio=(max(w/iw,h/ih) if fit=='cover' else min(w/iw,h/ih))
+            nw,nh=iw*ratio,ih*ratio
+            if fit=='cover':
+                c.saveState()
+                region=c.beginPath();region.rect(x,A4[1]-y-h,w,h)
+                c.clipPath(region,stroke=0,fill=0)
+            c.drawImage(img,x+(w-nw)/2,A4[1]-y-(h+nh)/2,width=nw,height=nh,mask='auto')
+            if fit=='cover':
+                c.restoreState()
     except (OSError,ValueError):
         return
 
@@ -227,7 +249,7 @@ def _draw_element(c,b,inv,co,cust,page,preview):
         if inv.get('service_date') and co.get('template_show_service_date',1):text+='\nLeistung: '+str(inv['service_date'])
     elif kind=='subject':text=inv.get('subject','')
     elif kind=='footer':text=co.get('template_footer') or co.get('footer_text','')
-    elif kind=='uid':text=('UID / MWST: '+co['uid']) if co.get('uid') else ''
+    elif kind=='uid':text=(('UID / MWST: ' if co.get('tax_registered',1) else 'UID: ')+co['uid']) if co.get('uid') else ''
     elif kind=='text':text=_expand(b['text'],inv,co,cust)
     else:return
     _text(c,b,text,bold=kind in ('title','number'))
@@ -253,7 +275,8 @@ def _row(c,b,line,y,co):
     body=min(12,max(7,int(b['size'])))
     desc=str(line['description'])
     parts=_fit_text(desc,'Helvetica',body,w*.51-8*MM)[:8]
-    h=max(11,5+len(parts)*body*1.35/MM)
+    has_discount=Decimal(str(line.get('discount','0'))) != 0
+    h=max(11,5+len(parts)*body*1.35/MM)+(5 if has_discount else 0)
     if str(co.get('template_table_style','lines'))=='zebra' and int(line.get('_index',0))%2:
         c.setFillColor(col('#f1f5fa'));c.rect(x,A4[1]-(y+h)*MM,w,h*MM,stroke=0,fill=1)
     c.setFillColor(col(INK));c.setFont('Helvetica',body)
@@ -263,20 +286,31 @@ def _row(c,b,line,y,co):
     c.drawRightString(x+w*.68,baseline,str(line['qty'])+' '+str(line['unit']))
     c.drawRightString(x+w*.83,baseline,money(line['price']))
     c.setFont('Helvetica-Bold',body)
-    c.drawRightString(x+w-3*MM,baseline,money(line['line_net']))
+    c.drawRightString(x+w-3*MM,baseline,money(line.get('_position_net',line['line_net'])))
+    if has_discount:
+        c.setFillColor(col(MUTED));c.setFont('Helvetica',7)
+        c.drawString(x+3*MM,A4[1]-(y+h-1.5)*MM,
+                     'Positionsrabatt '+str(line['discount'])+' % ('+
+                     discount_adjustment(line.get('_position_discount','0'))+' '+str(line.get('_currency','CHF'))+')')
     if co.get('template_table_style','lines')=='lines':
         c.setStrokeColor(col('#e2e8f0'));c.setLineWidth(.5)
         c.line(x,A4[1]-(y+h)*MM,x+w,A4[1]-(y+h)*MM)
     return h
 
 
-def _summary(c,b,inv,co,start_y):
-    x,y,w=(b[k]*MM for k in ('x','y','w'))
-    y=start_y*MM
-    rate_items=sorted(json.loads(inv.get('tax_breakdown') or '{}').items())
-    base_size=max(7,min(12,b['size']))
+def _summary_rows(inv, co, discounts):
+    tax_enabled=bool(co.get('tax_registered',1))
+    rate_items=sorted(json.loads(inv.get('tax_breakdown') or '{}').items()) if tax_enabled else []
     detail=co.get('template_show_tax_breakdown',1) or len(rate_items)>1
-    data=[('Zwischensumme',money(inv['subtotal'])+' '+inv['currency'])]
+    has_global=Decimal(discounts['global_percent']) != 0
+    first_total=discounts['after_positions'] if has_global else inv['subtotal']
+    data=[('Zwischensumme', money(first_total)+' '+inv['currency'])]
+    if has_global:
+        data.extend([
+            ('Gesamtrabatt '+discounts['global_percent']+' %',
+             discount_adjustment(discounts['global_discount'])+' '+inv['currency']),
+            ('Netto nach Rabatt',money(inv['subtotal'])+' '+inv['currency']),
+        ])
     if not detail and rate_items:
         data.append(('MWST',money(inv['tax_total'])+' '+inv['currency']))
     else:
@@ -284,6 +318,13 @@ def _summary(c,b,inv,co,start_y):
             label={'exempt':'MWST befreit','excluded':'MWST ausgenommen'}.get(rate,'MWST '+rate+' %')
             data.append((label,money(entry['tax'])+' '+inv['currency']))
     data.append(('TOTAL',money(inv['total'])+' '+inv['currency']))
+    return data
+
+
+def _summary(c,b,inv,co,start_y,data):
+    x,y,w=(b[k]*MM for k in ('x','y','w'))
+    y=start_y*MM
+    base_size=max(7,min(12,b['size']))
     y_pt=A4[1]-y-7*MM
     for idx,(label,amount) in enumerate(data):
         last=idx==len(data)-1
@@ -311,8 +352,14 @@ def designer_invoice_pages(c,inv,co,cust,lines,preview=False):
         # Layers: decoration, free text, fixed statutory fields, footer.
         for b in blocks:
             if b['kind']=='box':_draw_element(c,b,inv,co,cust,page,preview)
+        # Hintergrundbilder vor Belegtext zeichnen; grossflaechige Logos bleiben
+        # dadurch nutzbar, ohne Pflichtangaben oder Betragsfelder zu verdecken.
+        if page==1:
+            for b in blocks:
+                if b['kind'] in ('image','logo'):
+                    _draw_element(c,b,inv,co,cust,page,preview)
         for b in blocks:
-            if b['kind']=='footer' or (page==1 and b['kind'] not in FLOW and b['kind'] not in ('box','footer')):
+            if b['kind']=='footer' or (page==1 and b['kind'] not in FLOW and b['kind'] not in ('box','footer','image','logo')):
                 _draw_element(c,b,inv,co,cust,page,preview)
         if page>1:
             c.setFillColor(col(MUTED));c.setFont('Helvetica-Bold',11)
@@ -323,6 +370,8 @@ def designer_invoice_pages(c,inv,co,cust,lines,preview=False):
         if preview:
             c.setFillColor(col('#b91c1c'));c.setFont('Helvetica-Bold',9)
             c.drawCentredString(A4[0]/2,16*MM,'ENTWURF - NICHT VERSENDEN')
+    discounts=discount_details(lines,inv.get('discount','0'))
+    summary_data=_summary_rows(inv,co,discounts)
     page=1
     decorate(page)
     tb=bykind['table'];y=tb['y'];y=_header(c,tb,co,y)
@@ -330,17 +379,19 @@ def designer_invoice_pages(c,inv,co,cust,lines,preview=False):
     bottom=263
     for i,rawline in enumerate(lines):
         line=dict(rawline);line['_index']=i
+        line['_position_net']=discounts['lines'][i]['after']
+        line['_position_discount']=discounts['lines'][i]['discount']
+        line['_currency']=inv['currency']
         # Calculate row height once for page break to prevent drawing past page.
         description=_fit_text(str(line['description']),'Helvetica',tb['size'],tb['w']*MM*.51-8*MM)[:8]
-        row_h=max(11,5+len(description)*tb['size']*1.35/MM)
+        row_h=max(11,5+len(description)*tb['size']*1.35/MM)+(
+            5 if Decimal(str(line.get('discount','0'))) != 0 else 0)
         if y+row_h>bottom:
             c.showPage();page+=1;decorate(page)
             y=_header(c,tb,co,34)
         y+=_row(c,tb,line,y,co)
     summary=bykind['totals']
-    tax_items=json.loads(inv.get('tax_breakdown') or '{}')
-    detail=co.get('template_show_tax_breakdown',1) or len(tax_items)>1
-    size=max(summary['h'],(1+(len(tax_items) if detail else bool(tax_items))+1)*6.2+6)
+    size=max(summary['h'],len(summary_data)*6.2+6)
     extra=[]
     for kind in ('notes','terms'):
         b=bykind.get(kind)
@@ -356,17 +407,23 @@ def designer_invoice_pages(c,inv,co,cust,lines,preview=False):
         for kind,b,text in extra:
             cursor=max(cursor+3,b['y'] if use_configured else cursor+3)+b['h']
         return cursor
-    # Keep total and final text together; don't leave a lonely final page with notes.
-    if final_bottom(start,page==1)>263:
+    # Keep the first page complete when a small vertical adjustment is enough.
+    # Respect deliberately distant custom summary coordinates (more than 20 mm).
+    if page==1 and final_bottom(start,True)>265:
+        compact=y+5
+        if start-compact <= 20 and final_bottom(compact,True)<=265:
+            start=compact
+    # If it still does not fit, move totals and closing notes together.
+    if final_bottom(start,page==1)>265:
         c.showPage();page+=1;decorate(page);start=36
-    size=_summary(c,summary,inv,co,start)
+    size=_summary(c,summary,inv,co,start,summary_data)
     cursor=start+size
     for kind,b,text in extra:
         remaining=_fit_text(text,'Helvetica',b['size'],b['w']*MM-4)
         next_y=max(cursor+3,b['y'] if page==1 else cursor+3)
         line_height=b['size']*1.25/MM
         while remaining:
-            if next_y+8>263:
+            if next_y+8>265:
                 c.showPage();page+=1;decorate(page);next_y=38
             maxlines=max(1,int(((263-next_y)*MM-3)/(b['size']*1.25)))
             chunk=remaining[:maxlines]

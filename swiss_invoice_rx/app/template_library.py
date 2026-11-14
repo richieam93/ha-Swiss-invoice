@@ -12,6 +12,7 @@ TEMPLATE_FIELDS = (
     'template_show_payment_terms', 'template_show_customer_email',
     'default_invoice_notes', 'template_table_style', 'template_logo_size',
     'template_body_size', 'template_show_page_numbers',
+    'template_logo_x_mm','template_logo_y_mm','template_logo_height_mm','template_logo_fit',
     'designer_enabled', 'designer_layout',
 )
 
@@ -24,6 +25,8 @@ DEFAULTS = {
     'template_show_customer_email':0, 'default_invoice_notes':'',
     'template_table_style':'lines', 'template_logo_size':110,
     'template_body_size':9, 'template_show_page_numbers':1,
+    'template_logo_x_mm':'15','template_logo_y_mm':'16',
+    'template_logo_height_mm':'19','template_logo_fit':'contain',
     'designer_enabled':0, 'designer_layout':'',
 }
 

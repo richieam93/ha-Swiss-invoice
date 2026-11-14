@@ -83,6 +83,45 @@ def summarize(lines, global_discount='0'):
                               for k, v in buckets.items()}}
 
 
+
+def discount_details(lines, global_discount='0'):
+    """Financially transparent discount totals without changing persisted amounts.
+
+    Each position's net in the database already includes its individual discount
+    AND the invoice-wide discount. Calculate the presentation amounts using the
+    same per-line HALF_UP rounding as summarize(), so the totals always agree.
+    """
+    rate = percent(global_discount)
+    gross = Decimal('0')
+    after_positions = Decimal('0')
+    final_net = Decimal('0')
+    per_line = []
+    for row in lines:
+        before = cents(dec(row['qty']) * dec(row['price']))
+        discounted = cents(dec(row['qty']) * dec(row['price']) *
+                           (1 - percent(row.get('discount', '0')) / 100))
+        actual = cents(row['line_net']) if row.get('line_net') is not None else cents(
+            dec(row['qty']) * dec(row['price']) *
+            (1 - percent(row.get('discount', '0')) / 100) * (1 - rate / 100))
+        gross += before
+        after_positions += discounted
+        final_net += actual
+        per_line.append({'before':num(before), 'after':num(discounted),
+                         'discount':num(before - discounted), 'adjustment':discount_adjustment(before - discounted), 'net':num(actual)})
+    return {'gross':num(gross), 'after_positions':num(after_positions),
+            'line_discount':num(gross - after_positions),
+            'line_adjustment':discount_adjustment(gross - after_positions),
+            'global_discount':num(after_positions - final_net),
+            'global_adjustment':discount_adjustment(after_positions - final_net),
+            'final_net':num(final_net), 'global_percent':str(rate), 'lines':per_line}
+
+
+def discount_adjustment(amount):
+    """Signed adjustment to display for a reduction (also on credit notes)."""
+    value = cents(amount)
+    return ('- ' if value >= 0 else '+ ') + money(abs(value))
+
+
 def hash_password(password):
     if len(password) < 10:
         raise ValueError('Passwort: mindestens 10 Zeichen erforderlich')

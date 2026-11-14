@@ -26,11 +26,15 @@ Der Assistent erfasst Geschäftsart, Rechnungsadresse, Logo, Passwort, Bankverbi
 
 Rechnungen, Offerten und Gutschriften werden im Bereich **Verkauf** erstellt. Entwürfe lassen sich bearbeiten, kopieren oder löschen. Freigegebene Belege werden als PDF archiviert. Rechnungsvorlagen und Logos werden pro Geschäft verwaltet.
 
+Im Rechnungseditor lassen sich mit **Neuen Artikel erfassen** Artikel direkt anlegen und als Position übernehmen. Vollständige Entwürfe werden nach einer kurzen Eingabepause automatisch gespeichert. Noch unvollständige Eingaben bleiben vorübergehend im jeweiligen Browser gespeichert. Die Freigabe von Rechnungen erfolgt weiterhin manuell.
+
 Das **QR-Testzentrum** überprüft die Kombination aus IBAN, Referenzart und Zahlungsangaben. Der normierte QR-Zahlteil bleibt unabhängig vom gewählten Rechnungsdesign.
 
 ## Logos und PDF-Gestaltung
 
 Unter **Firmendaten → Logos** können separate Oberflächen- und Rechnungslogos hinterlegt werden. Ohne eigenes Rechnungslogo übernimmt der PDF-Designer das Geschäftslogo. Die Entwurfskennzeichnung ist pro Geschäft unter **Darstellung & PDF** einstellbar.
+
+Im **Vorlagen-Studio** können Breite, Höhe, Position und Bildanpassung des Rechnungslogos angepasst werden. Im **Freien PDF-Designer** lassen sich Logos und Bilder frei ziehen und skalieren, auch über die A4-Seitenränder hinaus. Die Aktionen **Randlos über Seitenbreite** und **A4-Hintergrund füllen** positionieren Bilder mit einem kleinen Beschnitt für einen randlosen Abschluss.
 
 ## Netzwerkzugriff
 

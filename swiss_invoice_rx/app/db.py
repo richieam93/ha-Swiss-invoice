@@ -50,6 +50,10 @@ CREATE TABLE IF NOT EXISTS companies (
  template_show_customer_email INTEGER NOT NULL DEFAULT 0,
  template_table_style TEXT NOT NULL DEFAULT 'lines',
  template_logo_size INTEGER NOT NULL DEFAULT 110,
+ template_logo_x_mm TEXT NOT NULL DEFAULT '15',
+ template_logo_y_mm TEXT NOT NULL DEFAULT '16',
+ template_logo_height_mm TEXT NOT NULL DEFAULT '19',
+ template_logo_fit TEXT NOT NULL DEFAULT 'contain',
  template_body_size INTEGER NOT NULL DEFAULT 9,
  template_show_page_numbers INTEGER NOT NULL DEFAULT 1,
  designer_enabled INTEGER NOT NULL DEFAULT 0,
@@ -208,6 +212,10 @@ def initialize(path):
                 'default_invoice_notes': "TEXT NOT NULL DEFAULT ''",
                 'template_table_style': "TEXT NOT NULL DEFAULT 'lines'",
                 'template_logo_size': 'INTEGER NOT NULL DEFAULT 110',
+                'template_logo_x_mm': "TEXT NOT NULL DEFAULT '15'",
+                'template_logo_y_mm': "TEXT NOT NULL DEFAULT '16'",
+                'template_logo_height_mm': "TEXT NOT NULL DEFAULT '19'",
+                'template_logo_fit': "TEXT NOT NULL DEFAULT 'contain'",
                 'template_body_size': 'INTEGER NOT NULL DEFAULT 9',
                 'template_show_page_numbers': 'INTEGER NOT NULL DEFAULT 1',
                 'designer_enabled': 'INTEGER NOT NULL DEFAULT 0',
@@ -231,7 +239,7 @@ def initialize(path):
             for field, declaration in columns.items():
                 if field not in existing:
                     con.execute(f'ALTER TABLE {table} ADD COLUMN {field} {declaration}')
-        con.execute('PRAGMA user_version=15')
+        con.execute('PRAGMA user_version=16')
         con.execute('PRAGMA journal_mode=WAL')
         con.commit()
     finally:

@@ -228,7 +228,7 @@ class LibraryV17Tests(unittest.TestCase):
             initialize(db)
             con=db_connect(db)
             try:
-                self.assertEqual(con.execute('PRAGMA user_version').fetchone()[0],15)
+                self.assertEqual(con.execute('PRAGMA user_version').fetchone()[0],16)
                 self.assertEqual(con.execute('SELECT number FROM invoices').fetchone()[0],'ALT-42')
                 self.assertEqual(con.execute('SELECT name FROM customers').fetchone()[0],'Alt Kunde')
                 self.assertEqual(con.execute('SELECT template_logo_size FROM companies').fetchone()[0],110)
